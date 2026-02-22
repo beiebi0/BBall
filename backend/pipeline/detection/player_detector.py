@@ -10,29 +10,33 @@ logger = logging.getLogger(__name__)
 
 
 class PlayerDetector:
-    """YOLOv8 + BotSORT player detection and tracking."""
+    """YOLO11m + BotSORT player detection and tracking."""
 
     def __init__(
         self,
-        model_path: str = "models/yolov8n.pt",
+        model_path: str = "yolo11m.pt",
         tracker_config: str = "models/botsort.yaml",
         conf_thresh: float = 0.25,
+        imgsz: int = 1280,
     ):
         self.model = YOLO(model_path)
         self.tracker_config = tracker_config
         self.conf_thresh = conf_thresh
+        self.imgsz = imgsz
 
     def track_video(self, video_path: str) -> Iterator[tuple[int, list[PlayerDetection], np.ndarray]]:
         """
         Stream player detections frame-by-frame.
         Yields (frame_index, players, original_frame) tuples.
         """
+        # Run tracking at 1280 resolution
         results = self.model.track(
             source=video_path,
             tracker=self.tracker_config,
             persist=True,
             stream=True,
             conf=self.conf_thresh,
+            imgsz=self.imgsz,
         )
 
         for frame_idx, result in enumerate(results):
