@@ -26,7 +26,7 @@ BBall/
 │   │   ├── core/             # Security, S3, database config
 │   │   └── workers/          # Celery tasks
 │   ├── pipeline/             # ML/Video processing pipeline
-│   │   ├── detection/        # YOLOv8 player + ball detectors
+│   │   ├── detection/        # YOLO11 player + ball detectors (with pose-based filtering)
 │   │   ├── tracking/         # Ball possession tracking
 │   │   ├── events/           # Game event detection
 │   │   └── video/            # ffmpeg clip extraction
@@ -35,7 +35,7 @@ BBall/
 │   ├── docker-compose.yml    # Local dev (Postgres + Redis + MinIO)
 │   └── Dockerfile
 ├── mobile/                   # React Native iOS app (Phase 2)
-├── possession_tracker.py     # Original prototype
+├── possession_tracker.py     # Prototype (upgraded to YOLO11 + pose filtering)
 └── botsort.yaml              # BotSORT tracker config
 ```
 
@@ -49,8 +49,8 @@ BBall/
 | Database | PostgreSQL + SQLAlchemy + Alembic |
 | Object Storage | AWS S3 (MinIO for local dev) |
 | Auth | JWT (email + password) |
-| Player Detection | YOLOv8 Nano + BotSORT |
-| Ball Detection | Custom YOLO model |
+| Player Detection | YOLO11m + BotSORT |
+| Ball Detection | YOLO11m (COCO class 32) + YOLO11n-pose filtering |
 | Video Processing | ffmpeg |
 
 ## Getting Started
@@ -100,10 +100,18 @@ curl http://localhost:8000/health
 ## Processing Pipeline
 
 ```
-Upload → Download to Worker → Detection & Tracking (YOLOv8 + BotSORT)
+Upload → Download to Worker → Detection & Tracking (YOLO11m + BotSORT)
+→ Pose-based Ball Filtering (YOLO11n-pose, discard face false positives)
 → Event Detection (possession changes, potential scores, fast breaks)
 → Clip Extraction (ffmpeg) → Compile Reels → Upload to S3
 ```
+
+### Detection Details
+
+- **Player detection**: YOLO11m (COCO class 0) with BotSORT tracking at 1280px input resolution
+- **Ball detection**: YOLO11m (COCO class 32, "sports ball") — unified model replaces the separate custom ball detector
+- **Pose-based filtering**: YOLO11n-pose extracts head keypoints (nose, eyes, ears); ball candidates within 30px of any head keypoint are discarded as false positives
+- **Possession stability**: Requires 6/10 frame majority (up from simple majority) for smoother tracking
 
 ### MVP Event Detection
 

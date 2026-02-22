@@ -54,7 +54,7 @@ Upload on S3 → Download to worker → Stage 1: Setup (0-10%)
 ```
 
 Two Celery tasks split by the player selection step:
-1. `process_video_detection` — Downloads video, runs YOLO detection/tracking, extracts preview
+1. `process_video_detection` — Downloads video, runs YOLO11 detection/tracking with pose-based ball filtering, extracts preview
 2. `process_video_highlights` — Detects events, extracts clips, compiles reels, uploads to S3
 
 ## Phased Implementation
@@ -65,6 +65,8 @@ Two Celery tasks split by the player selection step:
 - DB models + Alembic migrations
 - JWT auth system (signup/login/me)
 - S3 presigned URL upload flow
+- Prototype upgraded to YOLO11m + YOLO11n-pose (from YOLOv8n + custom ball model)
+- Pose-based ball filtering to eliminate face/head false positives
 - Pipeline modules refactored from possession_tracker.py
 - MVP event detection (possession changes, potential scores, fast breaks)
 - ffmpeg clip extraction + concatenation
@@ -90,6 +92,7 @@ Two Celery tasks split by the player selection step:
 - Advanced events: steals, blocks, assists, rebounds, crossovers
 - Highlight quality ranking + configurable reel length
 - Enable BotSORT Re-ID for better player identity persistence
+- Tune pose-filtering distance threshold (currently 30px) per resolution
 
 ## Data Flow
 
