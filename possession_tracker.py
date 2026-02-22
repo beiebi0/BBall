@@ -3,137 +3,156 @@ from ultralytics import YOLO
 import collections
 import numpy as np
 import os
+import json
 
 # Create output directory for visualization frames
 OUTPUT_DIR = "output_frames"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# 1. Setup Mac GPU (MPS)
-player_model = YOLO('yolov8n.pt')
-ball_model = YOLO('ball_detector_model.pt')
+# 1. Setup Models
+# Use YOLO11m for better accuracy on players (class 0) and sports ball (class 32)
+main_model = YOLO('yolo11m.pt')
+# Use YOLO11n-pose for filtering ball detections near the face
+pose_model = YOLO('yolo11n-pose.pt')
 
-
-video_path = "pickup_game.mp4"
-cap = cv2.VideoCapture(video_path)
+VIDEO_PATH = "pickup_game.mp4"
+cap = cv2.VideoCapture(VIDEO_PATH)
 fps = cap.get(cv2.CAP_PROP_FPS)
 
-# Lower conf so small/fast ball detections are kept (default 0.25; ball often low-conf)
-CONF_THRESH = 0.10
-
-# Set to True to print how often the ball is detected (debug)
-DEBUG_BALL_DETECTION = True
+# Lower conf for ball (small/fast); 0.25 is default for players
+BALL_CONF_THRESH = 0.15
+PLAYER_CONF_THRESH = 0.25
+IMG_SIZE = 1280 # High res for small ball detection
 
 # possession_data: { player_id: [[start_time, end_time],...] }
 possession_map = collections.defaultdict(list)
 current_possessor = None
-start_frame = 0
 frame_count = 0
 frames_with_ball = 0
 
-# Track the last 10 frames to confirm stability (the "10-frame rule")
+# Track the last 10 frames to confirm stability
 possession_history = collections.deque(maxlen=10)
 
-player_results = player_model.track(
-    source=video_path,
+# Main processing loop
+# We track players using the main model
+results_stream = main_model.track(
+    source=VIDEO_PATH,
     tracker="botsort.yaml",
     persist=True,
     stream=True,
-    conf=CONF_THRESH,
+    conf=0.1, # Allow low conf detections for now, we filter later
+    imgsz=IMG_SIZE
 )
 
-for player_result in player_results:
-    if frame_count > 10 :
+print(f"Processing {VIDEO_PATH} with YOLO11 + Pose Filtering...")
+
+for result in results_stream:
+    # For speed of testing, limit to 10 frames
+    if frame_count >= 10:
         break
+    
     frame_count += 1
     timestamp = frame_count / fps
+    orig_img = result.orig_img
+    annotated_frame = orig_img.copy()
     
-    # Extract player bounding boxes and IDs from player_model
-    player_boxes = player_result.boxes.xyxy.cpu().numpy()
-    player_ids = player_result.boxes.id.cpu().numpy() if player_result.boxes.id is not None else np.array([])
-    player_classes = player_result.boxes.cls.cpu().numpy()
-    
+    # --- 1. Extract Players & Ball ---
     players = []
-    for i, cls in enumerate(player_classes):
-        if int(cls) == 0:  # COCO class 0 = 'person'
-            if player_ids is not None and i < len(player_ids):
-                players.append({"id": int(player_ids[i]), "box": player_boxes[i]})
-
-    ball_box = None
-    # Detect ball using ball_model
-    ball_preds = ball_model.predict(source=player_result.orig_img, conf=CONF_THRESH, verbose=False)
-    for ball_pred in ball_preds:
-        ball_boxes = ball_pred.boxes.xyxy.cpu().numpy()
-        ball_classes = ball_pred.boxes.cls.cpu().numpy()
+    ball_candidates = []
+    
+    if result.boxes is not None:
+        boxes = result.boxes.xyxy.cpu().numpy()
+        ids = result.boxes.id.cpu().numpy() if result.boxes.id is not None else [None] * len(boxes)
+        classes = result.boxes.cls.cpu().numpy()
+        confs = result.boxes.conf.cpu().numpy()
         
-        for i, cls in enumerate(ball_classes):
-            if int(cls) == 0:  # Class 'Ball'
-                ball_box = ball_boxes[i]
-                frames_with_ball += 1
-                break # Found a ball, no need to check other classes in this prediction
-        if ball_box is not None:
-            break # Found a ball in this prediction, no need to check other predictions
+        for i in range(len(boxes)):
+            cls = int(classes[i])
+            conf = confs[i]
+            
+            if cls == 0 and conf >= PLAYER_CONF_THRESH: # Person
+                players.append({"id": ids[i], "box": boxes[i]})
+            elif cls == 32 and conf >= BALL_CONF_THRESH: # Sports Ball
+                ball_candidates.append({"box": boxes[i], "conf": conf})
 
-    # Draw bounding boxes and save frame
-    annotated_frame = player_result.orig_img.copy() # Make a copy to draw on
-
-    # Draw player bounding boxes
-    for player in players:
-        px1, py1, px2, py2 = [int(c) for c in player["box"]]
-        player_id = player["id"]
-        cv2.rectangle(annotated_frame, (px1, py1), (px2, py2), (0, 255, 0), 2) # Green box for players
-        cv2.putText(annotated_frame, f"P{player_id}", (px1, py1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-    # Draw ball bounding box
-    if ball_box is not None:
-        bx1, by1, bx2, by2 = [int(c) for c in ball_box]
-        cv2.rectangle(annotated_frame, (bx1, by1), (bx2, by2), (0, 0, 255), 2) # Red box for ball
-        cv2.putText(annotated_frame, "Ball", (bx1, by1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+    # --- 2. Pose Filtering (The Zero-Face Policy) ---
+    # Get poses for all players in this frame
+    pose_results = pose_model.predict(source=orig_img, conf=0.3, verbose=False, imgsz=IMG_SIZE)
+    player_heads = [] # List of head bounding boxes or keypoint centers
     
-    # Save annotated frame
-    frame_filename = os.path.join(OUTPUT_DIR, f"frame_{frame_count:04d}.jpg")
-    cv2.imwrite(frame_filename, annotated_frame)
+    for pr in pose_results:
+        if pr.keypoints is not None:
+            # keypoints.xy: [num_persons, 17, 2]
+            # COCO Keypoints: 0: nose, 1: l_eye, 2: r_eye, 3: l_ear, 4: r_ear
+            kpts = pr.keypoints.xy.cpu().numpy()
+            for person_kpts in kpts:
+                # Get head keypoints (0-4)
+                head_kpts = person_kpts[0:5]
+                # Filter out [0,0] (not detected)
+                valid_head = head_kpts[np.any(head_kpts != 0, axis=1)]
+                if len(valid_head) > 0:
+                    player_heads.append(valid_head)
 
-    if DEBUG_BALL_DETECTION:
-        if ball_box is not None:
-            print(f"Frame {frame_count}: Ball detected.")
-        else:
-            print(f"Frame {frame_count}: No ball detected.")
+    # Filter ball candidates: discard if center is too close to a nose/eye
+    final_ball_box = None
+    for ball in ball_candidates:
+        bx1, by1, bx2, by2 = ball["box"]
+        ball_center = np.array([(bx1 + bx2) / 2, (by1 + by2) / 2])
+        is_face = False
+        
+        for head in player_heads:
+            # Calculate distance from ball center to any head keypoint
+            dists = np.linalg.norm(head - ball_center, axis=1)
+            if np.any(dists < 30): # 30 pixels threshold for "face overlap"
+                is_face = True
+                break
+        
+        if not is_face:
+            final_ball_box = ball["box"] # Take the most confident non-face ball
+            frames_with_ball += 1
+            break # Just take one ball for now
 
-    # 2. Possession Logic: Ball-in-Box
+    # --- 3. Draw & Annotate ---
+    # Draw players
+    for p in players:
+        px1, py1, px2, py2 = [int(c) for c in p["box"]]
+        pid = p["id"] if p["id"] is not None else "?"
+        cv2.rectangle(annotated_frame, (px1, py1), (px2, py2), (0, 255, 0), 2)
+        cv2.putText(annotated_frame, f"P{pid}", (px1, py1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+    # Draw final ball
+    if final_ball_box is not None:
+        bx1, by1, bx2, by2 = [int(c) for c in final_ball_box]
+        cv2.rectangle(annotated_frame, (bx1, by1), (bx2, by2), (0, 0, 255), 3)
+        cv2.putText(annotated_frame, "BALL", (bx1, by1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+    
+    # Save frame
+    cv2.imwrite(os.path.join(OUTPUT_DIR, f"frame_{frame_count:04d}.jpg"), annotated_frame)
+
+    # --- 4. Possession Logic ---
     found_possessor_this_frame = None
-    if ball_box is not None:
-        bx1, by1, bx2, by2 = ball_box
+    if final_ball_box is not None:
+        bx1, by1, bx2, by2 = final_ball_box
         ball_center = ((bx1 + bx2) / 2, (by1 + by2) / 2)
-        print(f"ball center:{ball_center}")
     
-        for player in players:
-            px1, py1, px2, py2 = player["box"]
-            # Check if ball center is within player bounding box
+        for p in players:
+            px1, py1, px2, py2 = p["box"]
+            # Ball center in player box
             if px1 <= ball_center[0] <= px2 and py1 <= ball_center[1] <= py2:
-                found_possessor_this_frame = player["id"]
+                found_possessor_this_frame = p["id"]
                 break
 
-    # 3. Temporal Smoothing (Stability check)
     possession_history.append(found_possessor_this_frame)
-    
-    # If the same player has the ball for most of the last 10 frames
-    # most_common(1) returns [(player_id, count)] or []; we need the player_id
     mc = collections.Counter(possession_history).most_common(1)
-    stable_possessor = mc[0][0] if mc else None
+    stable_possessor = mc[0][0] if (mc and mc[0][1] >= 6) else None # 6/10 frames for stability
     
     if stable_possessor != current_possessor:
-        # Close the previous interval
         if current_possessor is not None:
-            possession_map[current_possessor][-1][1] = timestamp
-        
-        # Start a new interval
+            possession_map[str(current_possessor)][-1][1] = timestamp
         if stable_possessor is not None:
-            possession_map[stable_possessor].append([timestamp, timestamp])
-        
+            possession_map[str(stable_possessor)].append([timestamp, timestamp])
         current_possessor = stable_possessor
 
-# Print final result
-import json
-if DEBUG_BALL_DETECTION:
-    print(f"Ball detected in {frames_with_ball}/{frame_count} frames ({100.0 * frames_with_ball / max(1, frame_count):.1f}%)")
+print(f"Finished processing {frame_count} frames.")
+print(f"Ball detected in {frames_with_ball} frames.")
 print(json.dumps(possession_map, indent=2))
