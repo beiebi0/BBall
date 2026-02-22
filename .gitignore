@@ -1,0 +1,22 @@
+# Virtual env
+bball_env/
+
+# Large binaries
+*.pt
+*.mp4
+
+# Generated output
+output_frames/
+
+# Python
+__pycache__/
+*.py[cod]
+.Python
+*.so
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
