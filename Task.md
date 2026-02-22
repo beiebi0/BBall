@@ -19,6 +19,7 @@
 - [x] Highlights API (list, get, download)
 - [x] Project docs (README, Master_Plan, User_journey, Implementation_plan, Task, Rules)
 - [x] Integrate YOLO11m + Zero-Face filtering into pipeline code (player_detector, ball_detector)
+- [x] Add unit tests for detection modules (test_ball_detector, test_player_detector)
 - [x] Remove obsolete prototype (`possession_tracker.py`) and redundant root `botsort.yaml`
 
 ## Next Steps
