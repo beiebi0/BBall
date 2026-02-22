@@ -34,9 +34,7 @@ BBall/
 │   ├── alembic/              # Database migrations
 │   ├── docker-compose.yml    # Local dev (Postgres + Redis + MinIO)
 │   └── Dockerfile
-├── mobile/                   # React Native iOS app (Phase 2)
-├── possession_tracker.py     # Prototype (upgraded to YOLO11 + pose filtering)
-└── botsort.yaml              # BotSORT tracker config
+└── mobile/                   # React Native iOS app (Phase 2)
 ```
 
 ## Tech Stack

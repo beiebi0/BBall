@@ -17,7 +17,9 @@
 - [x] Celery tasks (process_video_detection, process_video_highlights)
 - [x] Jobs API (create, status, progress polling, player selection)
 - [x] Highlights API (list, get, download)
-- [x] Project docs (README, Master_Plan, User_journey, Implementation_plan)
+- [x] Project docs (README, Master_Plan, User_journey, Implementation_plan, Task, Rules)
+- [x] Integrate YOLO11m + Zero-Face filtering into pipeline code (player_detector, ball_detector)
+- [x] Remove obsolete prototype (`possession_tracker.py`) and redundant root `botsort.yaml`
 
 ## Next Steps
 

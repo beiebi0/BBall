@@ -6,7 +6,7 @@ How the BBall development has evolved, what has been built, and what comes next.
 
 ## Starting Point: The Prototype
 
-Development began with a single-file proof of concept (`possession_tracker.py`) — a YOLOv8n-based script that could detect players and a ball in a basketball video, track them with BotSORT, and determine ball possession. It proved the core idea was viable but had major limitations:
+Development began with a single-file proof of concept (`possession_tracker.py`, since removed) — a YOLOv8n-based script that could detect players and a ball in a basketball video, track them with BotSORT, and determine ball possession. It proved the core idea was viable but had major limitations:
 
 - Used a custom-trained ball detector that produced frequent false positives (detecting heads/faces as balls)
 - No backend, no API, no user accounts — just a local script
@@ -52,7 +52,7 @@ Refactored the prototype into proper pipeline modules and upgraded the ML stack:
 - **Player detection** (`pipeline/detection/player_detector.py`) — upgraded from YOLOv8n to **YOLO11m** for better accuracy
 - **Ball detection** (`pipeline/detection/ball_detector.py`) — switched from custom model to **YOLO11m with COCO class 32** (sports ball), added **YOLO11n-pose filtering** to eliminate head/face false positives by checking proximity to keypoints
 - **Possession tracking** (`pipeline/tracking/possession.py`) — temporal smoothing with 6/10-frame majority voting for stability
-- **BotSORT config** (`botsort.yaml`) — tuned tracker parameters; Re-ID disabled for now
+- **BotSORT config** (`backend/models/botsort.yaml`) — tuned tracker parameters; Re-ID disabled for now
 
 ### Step 5 — Event Detection
 
@@ -98,6 +98,9 @@ A fully functional backend ready to be consumed by a mobile client. The complete
 1. `189ea4a` — Initial commit: possession tracker prototype (YOLOv8)
 2. `34eae12` — Upgrade tracker to YOLO11 + pose-based ball filtering
 3. `2916ad8` — Add Phase 1 backend: FastAPI server, ML pipeline, and project docs
+4. `a4fabbd` — Integrate YOLO11m and Zero-Face filtering into backend pipeline code
+5. `2a64708` — Remove obsolete `possession_tracker.py` prototype
+6. `915c939` — Remove redundant root `botsort.yaml` (kept in `backend/models/`)
 
 ---
 
