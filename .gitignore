@@ -1,5 +1,7 @@
 # Virtual env
 bball_env/
+venv/
+.venv/
 
 # Large binaries
 *.pt
@@ -13,10 +15,34 @@ __pycache__/
 *.py[cod]
 .Python
 *.so
+*.egg-info/
+dist/
+build/
+
+# Environment
 .env
+.env.local
 
 # IDE
 .idea/
 .vscode/
 *.swp
 .DS_Store
+
+# Docker
+docker-volumes/
+
+# Node / React Native
+mobile/node_modules/
+mobile/ios/Pods/
+mobile/ios/build/
+mobile/android/build/
+mobile/android/app/build/
+mobile/.expo/
+
+# Alembic
+backend/alembic/__pycache__/
+
+# Temp files
+*.tmp
+tmp/

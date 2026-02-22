@@ -1,0 +1,13 @@
+tracker_type: botsort
+fuse_score: False 
+track_high_thresh: 0.5
+track_low_thresh: 0.1
+new_track_thresh: 0.6
+track_buffer: 30
+match_thresh: 0.8
+gmc_method: orb  # This is the "Magic" that fixes camera panning lag [1, 2]
+# Re-ID model file, obtained from [1]
+# model_weights: os.path.join(os.path.dirname(os.path.abspath(__file__)), 'osnet_x0_25_msmt17.pt')
+proximity_thresh: 0.5
+appearance_thresh: 0.25
+with_reid: False # Set to True later if you want better identity persistence [3]
