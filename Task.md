@@ -22,6 +22,7 @@
 - [x] Add unit tests for detection modules (test_ball_detector, test_player_detector)
 - [x] Remove obsolete prototype (`possession_tracker.py`) and redundant root `botsort.yaml`
 - [x] Integrate Roboflow rim detection (`RimDetector`, orchestrator wiring, rim-proximity scoring in `EventDetector`, config settings, task plumbing)
+- [x] Add unit tests for RimDetector (test_rim_detector.py — 15 tests)
 
 ## Next Steps
 
