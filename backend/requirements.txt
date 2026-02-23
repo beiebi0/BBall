@@ -25,6 +25,7 @@ boto3==1.35.86
 ultralytics==8.3.57
 opencv-python-headless==4.10.0.84
 numpy>=1.26.0
+roboflow==1.1.53
 
 # Pydantic
 pydantic==2.10.4
@@ -33,3 +34,4 @@ pydantic-settings==2.7.0
 # Utils
 python-dotenv==1.0.1
 httpx==0.28.1
+pytest==8.3.4
