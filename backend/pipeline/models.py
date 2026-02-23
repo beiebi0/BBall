@@ -38,6 +38,7 @@ class FrameData:
     timestamp: float
     players: list[PlayerDetection] = field(default_factory=list)
     ball: Optional[BoundingBox] = None
+    hoop: Optional[BoundingBox] = None
     possessor_id: Optional[int] = None
     frame_width: int = 0
     frame_height: int = 0
