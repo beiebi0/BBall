@@ -26,9 +26,10 @@ ultralytics==8.3.57
 opencv-python-headless==4.10.0.84
 numpy>=1.26.0
 roboflow==1.1.53
+inference>=0.27.0
 
 # Pydantic
-pydantic==2.10.4
+pydantic[email]==2.10.4
 pydantic-settings==2.7.0
 
 # Utils

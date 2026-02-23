@@ -18,7 +18,7 @@ The app requests a **presigned S3 upload URL** (`POST /videos/upload-url`) and u
 
 ## 4. Start Processing
 
-A processing job is created (`POST /jobs`) which queues the video for detection and tracking via a Celery worker (`process_video_detection`). The job status moves through `queued` → `processing`, with `progress` (0-100) and `stage` descriptions updated as the pipeline runs. The app polls `GET /jobs/{job_id}/progress` to display a real-time progress bar.
+A processing job is created (`POST /jobs`) which queues the video for detection and tracking via a Celery worker (`process_video_detection`). The pipeline first detects the basketball rim position (if configured) for more accurate scoring detection, then runs player and ball detection/tracking. The job status moves through `queued` → `processing`, with `progress` (0-100) and `stage` descriptions updated as the pipeline runs. The app polls `GET /jobs/{job_id}/progress` to display a real-time progress bar.
 
 ## 5. Select Your Player
 

@@ -3,14 +3,14 @@ from datetime import datetime, timedelta, timezone
 import bcrypt
 import jwt
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthScheme, HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.database import get_db
 
-security_scheme = HTTPAuthScheme(scheme="bearer")
+security_scheme = HTTPBearer()
 
 
 def hash_password(password: str) -> str:

@@ -1,7 +1,7 @@
 import logging
 from typing import Optional
 
-from pipeline.models import ClipSpec, FrameData, GameEvent
+from pipeline.models import BoundingBox, ClipSpec, FrameData, GameEvent
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +17,14 @@ class EventDetector:
         fps: float,
         clip_padding_before: float = 3.0,
         clip_padding_after: float = 2.0,
+        rim_position: Optional[BoundingBox] = None,
+        rim_proximity_radius: float = 1.5,
     ):
         self.fps = fps
         self.padding_before = clip_padding_before
         self.padding_after = clip_padding_after
+        self.rim_position = rim_position
+        self.rim_proximity_radius = rim_proximity_radius
 
     def detect_events(self, frames: list[FrameData]) -> list[GameEvent]:
         """Analyze all frames and produce game events."""
@@ -104,7 +108,72 @@ class EventDetector:
         return events
 
     def _detect_potential_scores(self, frames: list[FrameData]) -> list[GameEvent]:
-        """Detect ball in upper quarter of frame as potential score."""
+        """Detect potential scores using rim proximity or upper-quarter fallback."""
+        if self.rim_position is not None:
+            return self._detect_scores_rim_proximity(frames)
+        return self._detect_scores_upper_quarter_fallback(frames)
+
+    def _is_near_rim(self, ball: BoundingBox) -> bool:
+        """Check if ball center is within the expanded rim zone."""
+        rim = self.rim_position
+        # Expand rim bbox by the proximity radius factor
+        rim_cx, rim_cy = rim.center
+        half_w = rim.width / 2 * self.rim_proximity_radius
+        half_h = rim.height / 2 * self.rim_proximity_radius
+
+        bx, by = ball.center
+        return (
+            rim_cx - half_w <= bx <= rim_cx + half_w
+            and rim_cy - half_h <= by <= rim_cy + half_h
+        )
+
+    def _detect_scores_rim_proximity(self, frames: list[FrameData]) -> list[GameEvent]:
+        """Detect potential scores by checking ball proximity to detected rim."""
+        events = []
+        in_score_zone = False
+        zone_start_frame: Optional[FrameData] = None
+
+        for frame in frames:
+            if frame.ball is not None:
+                if self._is_near_rim(frame.ball):
+                    if not in_score_zone:
+                        in_score_zone = True
+                        zone_start_frame = frame
+                else:
+                    if in_score_zone and zone_start_frame is not None:
+                        events.append(
+                            GameEvent(
+                                event_type="potential_score",
+                                frame_start=zone_start_frame.frame_index,
+                                frame_end=frame.frame_index,
+                                time_start=zone_start_frame.timestamp,
+                                time_end=frame.timestamp,
+                                confidence=0.8,
+                                metadata={"detection_method": "rim_proximity"},
+                            )
+                        )
+                        in_score_zone = False
+                        zone_start_frame = None
+            else:
+                if in_score_zone and zone_start_frame is not None:
+                    events.append(
+                        GameEvent(
+                            event_type="potential_score",
+                            frame_start=zone_start_frame.frame_index,
+                            frame_end=frame.frame_index,
+                            time_start=zone_start_frame.timestamp,
+                            time_end=frame.timestamp,
+                            confidence=0.6,
+                            metadata={"detection_method": "rim_proximity"},
+                        )
+                    )
+                    in_score_zone = False
+                    zone_start_frame = None
+
+        return events
+
+    def _detect_scores_upper_quarter_fallback(self, frames: list[FrameData]) -> list[GameEvent]:
+        """Fallback: detect ball in upper quarter of frame as potential score."""
         events = []
         in_score_zone = False
         zone_start_frame: Optional[FrameData] = None
@@ -128,6 +197,7 @@ class EventDetector:
                                 time_start=zone_start_frame.timestamp,
                                 time_end=frame.timestamp,
                                 confidence=0.5,
+                                metadata={"detection_method": "upper_quarter"},
                             )
                         )
                         in_score_zone = False
@@ -142,6 +212,7 @@ class EventDetector:
                             time_start=zone_start_frame.timestamp,
                             time_end=frame.timestamp,
                             confidence=0.3,
+                            metadata={"detection_method": "upper_quarter"},
                         )
                     )
                     in_score_zone = False

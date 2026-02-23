@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     ball_conf_threshold: float = 0.10
     player_conf_threshold: float = 0.25
 
+    # Rim Detection (Roboflow)
+    roboflow_api_key: str = ""
+    rim_model_id: str = "basketball-xil7x/1"
+    rim_conf_threshold: float = 0.30
+    rim_num_samples: int = 10
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

@@ -61,10 +61,10 @@ Built MVP game event detection (`pipeline/events/event_detector.py`):
 | Event Type | Detection Rule |
 |---|---|
 | Possession change | Ball switches between tracked players |
-| Potential score | Ball detected in upper quarter of frame |
+| Potential score | Ball near detected rim (1.5x expanded zone, confidence 0.8/0.6) or in upper quarter of frame as fallback (confidence 0.5/0.3) |
 | Fast break | Ball moves >60% of frame width in <3 seconds |
 
-Events get padded (3s before, 2s after) and overlapping clips are merged. Clips are filtered by player involvement for personal reels.
+Events get padded (3s before, 2s after) and overlapping clips are merged. Clips are filtered by player involvement for personal reels. Each potential score event includes `detection_method` in metadata (`rim_proximity` or `upper_quarter`).
 
 ### Step 6 — Video Processing
 
@@ -78,10 +78,10 @@ Implemented clip extraction and reel compilation (`pipeline/video/clip_extractor
 
 Wired everything together:
 
-- **Pipeline orchestrator** (`pipeline/orchestrator.py`) — runs the full detection pipeline with stage-based progress (0-100%)
+- **Pipeline orchestrator** (`pipeline/orchestrator.py`) — runs the full detection pipeline with stage-based progress (0-100%), including optional rim detection at startup
 - **Two Celery tasks** split at the player selection step:
-  1. `process_video_detection` — downloads video from S3, runs detection/tracking, extracts preview frame, pauses at `awaiting_selection`
-  2. `process_video_highlights` — after user selects their player, runs event detection, extracts clips, compiles reels, uploads to S3
+  1. `process_video_detection` — downloads video from S3, detects rim position (if Roboflow API key set), runs detection/tracking, extracts preview frame, pauses at `awaiting_selection`
+  2. `process_video_highlights` — after user selects their player, runs event detection (rim-based or fallback), extracts clips, compiles reels, uploads to S3
 - **Progress polling** via `GET /jobs/{id}/progress` with status, percentage, and stage description
 
 ### Step 8 — Remaining API Endpoints
@@ -90,6 +90,17 @@ Completed the full API surface:
 
 - **Job management** — create job, get status, progress polling, player selection
 - **Highlights** — list reels for a job, get individual highlight, presigned download URLs
+
+### Step 9 — Rim Detection Integration
+
+Added Roboflow-based rim detection (`pipeline/detection/rim_detector.py`) to replace the naive upper-quarter heuristic for potential score events:
+
+- **RimDetector** class samples ~10 evenly-spaced frames (skipping first/last 5%), runs Roboflow `basketball-xil7x/1` model, filters outlier detections via IQR on center coordinates, and returns a stable median bounding box
+- **Orchestrator** runs rim detection before the main detection loop (at 8% progress), stores the result, and passes it to `EventDetector`
+- **EventDetector** dispatches `_detect_potential_scores()` to either rim proximity scoring (ball within 1.5x expanded rim zone) or the original upper-quarter fallback
+- **Config** adds `roboflow_api_key`, `rim_model_id`, `rim_conf_threshold`, `rim_num_samples` settings
+- **Graceful fallback**: no API key → skip rim detection; no detections or inference failure → fall back to upper-quarter heuristic
+- **Unit tests** (`pipeline/detection/test_rim_detector.py`) — 15 tests covering IQR filtering, stable position computation, single-frame detection, and end-to-end `detect_from_samples` with mocked video/model
 
 ### Phase 1 Result
 
@@ -125,7 +136,7 @@ Tech stack: React Native + TypeScript, Expo for dev tooling, standard iOS camera
 
 Improvements to detection accuracy and event coverage once the end-to-end MVP is working:
 
-- **Hoop/court detection** for real scoring detection (replacing upper-quarter heuristic)
+- ~~**Hoop/court detection** for real scoring detection (replacing upper-quarter heuristic)~~ — **Done**: rim detection via Roboflow model integrated (Step 9)
 - **Team color clustering** via K-means on jersey HSV histograms
 - **Shot detection** tracking ball trajectory toward the hoop
 - **Advanced events**: steals, blocks, assists, rebounds, crossovers
@@ -143,6 +154,7 @@ React Native iOS App
 FastAPI Server (uvicorn)
     ↕ Celery task queue (Redis broker)
 Celery Worker (GPU)
+    ├── Roboflow inference (rim detection, optional)
     ├── YOLO11m (player detection)
     ├── YOLO11m (ball detection, COCO class 32)
     ├── YOLO11n-pose (false-positive filtering)
