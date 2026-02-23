@@ -54,6 +54,7 @@ services:
       AWS_ACCESS_KEY_ID: minioadmin
       AWS_SECRET_ACCESS_KEY: minioadmin
       S3_BUCKET: bball-videos
+      ROBOFLOW_API_KEY: ${ROBOFLOW_API_KEY:-}
     depends_on:
       - postgres
       - redis
@@ -74,6 +75,7 @@ services:
       AWS_ACCESS_KEY_ID: minioadmin
       AWS_SECRET_ACCESS_KEY: minioadmin
       S3_BUCKET: bball-videos
+      ROBOFLOW_API_KEY: ${ROBOFLOW_API_KEY:-}
     depends_on:
       - postgres
       - redis

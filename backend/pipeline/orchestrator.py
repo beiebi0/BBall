@@ -31,8 +31,9 @@ class PipelineOrchestrator:
 
     def __init__(
         self,
-        player_model_path: str = "models/yolov8n.pt",
-        ball_model_path: str = "models/ball_detector_model.pt",
+        player_model_path: str = "yolo11m.pt",
+        ball_model_path: str = "yolo11m.pt",
+        pose_model_path: str = "yolo11n-pose.pt",
         tracker_config_path: str = "models/botsort.yaml",
         player_conf: float = 0.25,
         ball_conf: float = 0.10,
@@ -47,6 +48,7 @@ class PipelineOrchestrator:
     ):
         self.player_model_path = player_model_path
         self.ball_model_path = ball_model_path
+        self.pose_model_path = pose_model_path
         self.tracker_config_path = tracker_config_path
         self.player_conf = player_conf
         self.ball_conf = ball_conf
@@ -129,6 +131,7 @@ class PipelineOrchestrator:
         )
         ball_detector = BallDetector(
             model_path=self.ball_model_path,
+            pose_model_path=self.pose_model_path,
             conf_thresh=self.ball_conf,
         )
         possession_tracker = PossessionTracker(smoothing_window=self.smoothing_window)
