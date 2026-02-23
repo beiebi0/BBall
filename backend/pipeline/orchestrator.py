@@ -7,8 +7,9 @@ import cv2
 
 from pipeline.detection.ball_detector import BallDetector
 from pipeline.detection.player_detector import PlayerDetector
+from pipeline.detection.rim_detector import RimDetector
 from pipeline.events.event_detector import EventDetector
-from pipeline.models import FrameData, GameEvent, ClipSpec
+from pipeline.models import BoundingBox, FrameData, GameEvent, ClipSpec
 from pipeline.tracking.possession import PossessionTracker
 from pipeline.video.clip_extractor import ClipExtractor
 
@@ -38,6 +39,10 @@ class PipelineOrchestrator:
         smoothing_window: int = 10,
         clip_padding_before: float = 3.0,
         clip_padding_after: float = 2.0,
+        roboflow_api_key: str = "",
+        rim_model_id: str = "basketball-xil7x/1",
+        rim_conf: float = 0.30,
+        rim_num_samples: int = 10,
         progress_callback: Optional[Callable[[int, str], None]] = None,
     ):
         self.player_model_path = player_model_path
@@ -48,7 +53,12 @@ class PipelineOrchestrator:
         self.smoothing_window = smoothing_window
         self.clip_padding_before = clip_padding_before
         self.clip_padding_after = clip_padding_after
+        self.roboflow_api_key = roboflow_api_key
+        self.rim_model_id = rim_model_id
+        self.rim_conf = rim_conf
+        self.rim_num_samples = rim_num_samples
         self._progress = progress_callback or (lambda p, m: None)
+        self._rim_position: Optional[BoundingBox] = None
 
     def _report(self, pct: int, msg: str):
         logger.info("Progress %d%%: %s", pct, msg)
@@ -82,11 +92,35 @@ class PipelineOrchestrator:
         _, jpeg = cv2.imencode(".jpg", frame)
         return jpeg.tobytes()
 
+    def run_rim_detection(self, video_path: str) -> Optional[BoundingBox]:
+        """Detect the basketball rim position from sampled frames.
+
+        Returns None if no API key is set or detection fails.
+        """
+        if not self.roboflow_api_key:
+            logger.info("No Roboflow API key set, skipping rim detection")
+            return None
+
+        self._report(8, "Detecting rim position")
+        try:
+            detector = RimDetector(
+                model_id=self.rim_model_id,
+                api_key=self.roboflow_api_key,
+                conf_thresh=self.rim_conf,
+            )
+            return detector.detect_from_samples(video_path, num_samples=self.rim_num_samples)
+        except Exception:
+            logger.exception("Rim detection failed, falling back to heuristic")
+            return None
+
     def run_detection(self, video_path: str) -> list[FrameData]:
         """
         Stage 1-2: Run player + ball detection on all frames.
         Returns per-frame data with possession info.
         """
+        # Detect rim position before main detection loop
+        self._rim_position = self.run_rim_detection(video_path)
+
         self._report(5, "Loading models")
         player_detector = PlayerDetector(
             model_path=self.player_model_path,
@@ -150,6 +184,7 @@ class PipelineOrchestrator:
             fps=fps,
             clip_padding_before=self.clip_padding_before,
             clip_padding_after=self.clip_padding_after,
+            rim_position=self._rim_position,
         )
 
         events = detector.detect_events(frames)
@@ -220,6 +255,7 @@ class PipelineOrchestrator:
                 fps=video_info["fps"],
                 clip_padding_before=self.clip_padding_before,
                 clip_padding_after=self.clip_padding_after,
+                rim_position=self._rim_position,
             )
             player_clips = event_detector.filter_clips_for_player(
                 clip_specs, selected_player_id

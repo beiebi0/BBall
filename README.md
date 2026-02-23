@@ -49,6 +49,7 @@ BBall/
 | Auth | JWT (email + password) |
 | Player Detection | YOLO11m + BotSORT |
 | Ball Detection | YOLO11m (COCO class 32) + YOLO11n-pose filtering |
+| Rim Detection | Roboflow inference (`basketball-xil7x/1`), optional |
 | Video Processing | ffmpeg |
 
 ## Getting Started
@@ -98,7 +99,8 @@ curl http://localhost:8000/health
 ## Processing Pipeline
 
 ```
-Upload → Download to Worker → Detection & Tracking (YOLO11m + BotSORT)
+Upload → Download to Worker → Rim Detection (Roboflow, sampled frames)
+→ Detection & Tracking (YOLO11m + BotSORT)
 → Pose-based Ball Filtering (YOLO11n-pose, discard face false positives)
 → Event Detection (possession changes, potential scores, fast breaks)
 → Clip Extraction (ffmpeg) → Compile Reels → Upload to S3
@@ -109,12 +111,13 @@ Upload → Download to Worker → Detection & Tracking (YOLO11m + BotSORT)
 - **Player detection**: YOLO11m (COCO class 0) with BotSORT tracking at 1280px input resolution
 - **Ball detection**: YOLO11m (COCO class 32, "sports ball") — unified model replaces the separate custom ball detector
 - **Pose-based filtering**: YOLO11n-pose extracts head keypoints (nose, eyes, ears); ball candidates within 30px of any head keypoint are discarded as false positives
+- **Rim detection**: Roboflow model (`basketball-xil7x/1`) samples ~10 evenly-spaced frames, filters outliers via IQR, and returns a stable median bounding box. Since the rim is static in fixed-camera footage, this adds near-zero overhead. Requires `ROBOFLOW_API_KEY` env var; when unset, falls back to the upper-quarter heuristic.
 - **Possession stability**: Requires 6/10 frame majority (up from simple majority) for smoother tracking
 
 ### MVP Event Detection
 
 - **Possession change** — Ball switches between players
-- **Potential score** — Ball detected in upper quarter of frame
+- **Potential score** — If rim is detected: ball within 1.5x expanded rim zone (confidence 0.8/0.6). Fallback: ball in upper quarter of frame (confidence 0.5/0.3). Events include `detection_method` in metadata (`rim_proximity` or `upper_quarter`).
 - **Fast break** — Ball moves >60% of frame width in <3 seconds
 
 Events get 3s padding before + 2s after; overlapping events merge into single clips.

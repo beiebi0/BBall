@@ -70,6 +70,10 @@ def process_video_detection(self, job_id: str):
             player_conf=settings.player_conf_threshold,
             ball_conf=settings.ball_conf_threshold,
             smoothing_window=settings.possession_smoothing_window,
+            roboflow_api_key=settings.roboflow_api_key,
+            rim_model_id=settings.rim_model_id,
+            rim_conf=settings.rim_conf_threshold,
+            rim_num_samples=settings.rim_num_samples,
             progress_callback=progress_cb,
         )
 
@@ -156,6 +160,10 @@ def process_video_highlights(self, job_id: str):
             ball_conf=settings.ball_conf_threshold,
             clip_padding_before=settings.clip_padding_before,
             clip_padding_after=settings.clip_padding_after,
+            roboflow_api_key=settings.roboflow_api_key,
+            rim_model_id=settings.rim_model_id,
+            rim_conf=settings.rim_conf_threshold,
+            rim_num_samples=settings.rim_num_samples,
             progress_callback=progress_cb,
         )
 

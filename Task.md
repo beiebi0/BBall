@@ -21,6 +21,7 @@
 - [x] Integrate YOLO11m + Zero-Face filtering into pipeline code (player_detector, ball_detector)
 - [x] Add unit tests for detection modules (test_ball_detector, test_player_detector)
 - [x] Remove obsolete prototype (`possession_tracker.py`) and redundant root `botsort.yaml`
+- [x] Integrate Roboflow rim detection (`RimDetector`, orchestrator wiring, rim-proximity scoring in `EventDetector`, config settings, task plumbing)
 
 ## Next Steps
 
@@ -50,7 +51,7 @@ The entire Phase 1 backend has been built but **never run or tested**. Before mo
 
 ### Phase 3: Better Detection (Future)
 
-- [ ] Hoop/court detection for real scoring
+- [x] ~~Hoop/court detection for real scoring~~ — Rim detection via Roboflow integrated
 - [ ] Team color clustering (K-means on jersey HSV)
 - [ ] Shot detection (ball trajectory toward hoop)
 - [ ] Advanced events (steals, blocks, assists, rebounds, crossovers)

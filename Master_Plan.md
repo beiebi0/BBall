@@ -54,8 +54,8 @@ Upload on S3 → Download to worker → Stage 1: Setup (0-10%)
 ```
 
 Two Celery tasks split by the player selection step:
-1. `process_video_detection` — Downloads video, runs YOLO11 detection/tracking with pose-based ball filtering, extracts preview
-2. `process_video_highlights` — Detects events, extracts clips, compiles reels, uploads to S3
+1. `process_video_detection` — Downloads video, detects rim position (Roboflow, optional), runs YOLO11 detection/tracking with pose-based ball filtering, extracts preview
+2. `process_video_highlights` — Detects events (using rim proximity if available, upper-quarter fallback otherwise), extracts clips, compiles reels, uploads to S3
 
 ## Phased Implementation
 
@@ -86,7 +86,7 @@ Two Celery tasks split by the player selection step:
 
 ### Phase 3: Better Highlight Detection (Future)
 
-- Hoop/court detection for real scoring detection
+- ~~Hoop/court detection for real scoring detection~~ — **Partially done**: rim detection via Roboflow model integrated; replaces upper-quarter heuristic with proximity-based scoring when `ROBOFLOW_API_KEY` is set
 - Team color clustering (K-means on jersey HSV histograms)
 - Shot detection (ball trajectory toward hoop)
 - Advanced events: steals, blocks, assists, rebounds, crossovers
