@@ -66,6 +66,7 @@ def process_video_detection(self, job_id: str):
         orchestrator = PipelineOrchestrator(
             player_model_path=settings.player_model_path,
             ball_model_path=settings.ball_model_path,
+            pose_model_path=settings.pose_model_path,
             tracker_config_path=settings.tracker_config_path,
             player_conf=settings.player_conf_threshold,
             ball_conf=settings.ball_conf_threshold,
@@ -155,6 +156,7 @@ def process_video_highlights(self, job_id: str):
         orchestrator = PipelineOrchestrator(
             player_model_path=settings.player_model_path,
             ball_model_path=settings.ball_model_path,
+            pose_model_path=settings.pose_model_path,
             tracker_config_path=settings.tracker_config_path,
             player_conf=settings.player_conf_threshold,
             ball_conf=settings.ball_conf_threshold,

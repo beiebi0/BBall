@@ -102,6 +102,15 @@ Added Roboflow-based rim detection (`pipeline/detection/rim_detector.py`) to rep
 - **Graceful fallback**: no API key → skip rim detection; no detections or inference failure → fall back to upper-quarter heuristic
 - **Unit tests** (`pipeline/detection/test_rim_detector.py`) — 15 tests covering IQR filtering, stable position computation, single-frame detection, and end-to-end `detect_from_samples` with mocked video/model
 
+### Step 10 — Docker Compose Fixes
+
+Resolved several issues that would prevent the Docker stack from starting:
+
+- **`.dockerignore`** — excludes `venv/`, `__pycache__/`, `.env`, and `*.pt` files from the Docker build context (saves 200MB+)
+- **Model path defaults** — `config.py` and `orchestrator.py` defaults changed from `models/yolov8n.pt` / `models/ball_detector_model.pt` to `yolo11m.pt` / `yolo11n-pose.pt` (ultralytics auto-downloads standard models)
+- **`pose_model_path` config** — added to `Settings`, `PipelineOrchestrator`, and both Celery task instantiations so the pose model path is configurable end-to-end
+- **`ROBOFLOW_API_KEY`** — passed through to `api` and `worker` services in `docker-compose.yml` (defaults to empty string for graceful fallback)
+
 ### Phase 1 Result
 
 A fully functional backend ready to be consumed by a mobile client. The complete commit history:

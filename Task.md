@@ -23,6 +23,7 @@
 - [x] Remove obsolete prototype (`possession_tracker.py`) and redundant root `botsort.yaml`
 - [x] Integrate Roboflow rim detection (`RimDetector`, orchestrator wiring, rim-proximity scoring in `EventDetector`, config settings, task plumbing)
 - [x] Add unit tests for RimDetector (test_rim_detector.py — 15 tests)
+- [x] Fix Docker Compose stack for first run (`.dockerignore`, model path defaults, `ROBOFLOW_API_KEY` env, `pose_model_path` wiring)
 
 ## Next Steps
 
