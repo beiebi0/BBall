@@ -1,5 +1,9 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api import auth, videos, jobs, highlights
 from app.config import settings
@@ -25,3 +29,14 @@ app.include_router(highlights.router, prefix="/highlights", tags=["highlights"])
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
+
+
+@app.get("/")
+async def root():
+    return RedirectResponse(url="/static/index.html")
+
+
+# Mount static files AFTER API routers to avoid path conflicts
+_static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+if os.path.isdir(_static_dir):
+    app.mount("/static", StaticFiles(directory=_static_dir), name="static")

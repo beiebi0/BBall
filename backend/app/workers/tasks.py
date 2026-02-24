@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import tempfile
@@ -83,16 +84,39 @@ def process_video_detection(job_id: str):
         session.commit()
 
         # Run detection
-        orchestrator.run_detection(local_video)
+        all_frames = orchestrator.run_detection(local_video)
 
-        # Extract preview frame and upload to GCS
-        preview_bytes = orchestrator.extract_preview_frame(local_video)
+        # Pick the middle frame for annotated preview
+        mid = all_frames[len(all_frames) // 2] if all_frames else None
+
+        # Extract annotated preview frame and upload to GCS
+        preview_bytes = None
+        if mid:
+            preview_bytes = orchestrator.extract_annotated_preview(local_video, mid)
+        if not preview_bytes:
+            preview_bytes = orchestrator.extract_preview_frame(local_video)
         if preview_bytes:
             preview_key = f"previews/{job_id}/preview.jpg"
             preview_path = os.path.join(work_dir, "preview.jpg")
             with open(preview_path, "wb") as f:
                 f.write(preview_bytes)
             upload_file(preview_path, preview_key)
+
+        # Collect unique player track IDs and upload players.json
+        if mid and mid.players:
+            players_list = []
+            seen_ids = set()
+            for p in mid.players:
+                if p.track_id not in seen_ids:
+                    seen_ids.add(p.track_id)
+                    players_list.append({
+                        "track_id": p.track_id,
+                        "bbox": [p.bbox.x1, p.bbox.y1, p.bbox.x2, p.bbox.y2],
+                    })
+            players_path = os.path.join(work_dir, "players.json")
+            with open(players_path, "w") as f:
+                json.dump(players_list, f)
+            upload_file(players_path, f"previews/{job_id}/players.json")
 
         _update_job(
             session, job_id,

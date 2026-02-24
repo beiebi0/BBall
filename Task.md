@@ -31,6 +31,12 @@
 - [x] Configurable CORS origins via `cors_origins` setting
 - [x] Alembic env var override for Cloud SQL migrations (`DATABASE_URL_SYNC`)
 
+- [x] Web client (`backend/static/index.html`) — single-file SPA for auth, upload, processing, player selection, and highlight viewing
+- [x] Annotated preview endpoint (`GET /jobs/{id}/preview`) — returns preview image URL + player list from detection
+- [x] `PipelineOrchestrator.extract_annotated_preview()` — draws green bounding boxes + track IDs on detected players
+- [x] Worker produces `players.json` alongside annotated preview during detection phase
+- [x] Static file serving in FastAPI (`/static`, root redirect to `/static/index.html`)
+
 ## Next Steps
 
 ### Test the Backend (Priority)

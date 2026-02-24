@@ -37,6 +37,7 @@ Build an iOS app that generates basketball highlight videos from pickup game rec
 | POST | `/jobs` | Start processing job |
 | GET | `/jobs/{id}` | Get job status |
 | GET | `/jobs/{id}/progress` | Lightweight progress polling |
+| GET | `/jobs/{id}/preview` | Annotated preview + player list |
 | POST | `/jobs/{id}/select-player` | Submit player selection + team color |
 | GET | `/highlights?job_id=X` | List generated highlight reels |
 | GET | `/highlights/{id}` | Get highlight with download URL |

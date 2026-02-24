@@ -63,6 +63,14 @@ def upload_file(local_path: str, s3_key: str) -> None:
     blob.upload_from_filename(local_path)
 
 
+def download_blob_bytes(s3_key: str) -> bytes | None:
+    """Download a small file from GCS and return its bytes, or None if not found."""
+    blob = _get_bucket().blob(s3_key)
+    if not blob.exists():
+        return None
+    return blob.download_as_bytes()
+
+
 def download_file(s3_key: str, local_path: str) -> None:
     blob = _get_bucket().blob(s3_key)
     blob.download_to_filename(local_path)

@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BBall Highlights</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #242836;
+    --border: #2e3346;
+    --text: #e4e6f0;
+    --text2: #8b8fa3;
+    --accent: #4f8cff;
+    --accent-hover: #6ba0ff;
+    --green: #34d399;
+    --red: #f87171;
+    --orange: #fbbf24;
+    --radius: 10px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  .container { max-width: 720px; margin: 0 auto; padding: 20px; }
+
+  /* Header */
+  .header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 0; margin-bottom: 24px; border-bottom: 1px solid var(--border);
+  }
+  .header h1 { font-size: 20px; font-weight: 700; }
+  .header button {
+    background: none; border: 1px solid var(--border); color: var(--text2);
+    padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
+  }
+  .header button:hover { color: var(--text); border-color: var(--text2); }
+
+  /* Screens */
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* Cards */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; margin-bottom: 16px;
+  }
+
+  /* Forms */
+  .tabs { display: flex; gap: 0; margin-bottom: 24px; }
+  .tab {
+    flex: 1; padding: 10px; text-align: center; cursor: pointer;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text2); font-size: 14px; font-weight: 500;
+    transition: all .15s;
+  }
+  .tab:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+  .tab:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+  .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 6px; }
+  input[type="email"], input[type="password"], input[type="text"] {
+    width: 100%; padding: 10px 14px; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 8px; color: var(--text);
+    font-size: 14px; margin-bottom: 16px; outline: none;
+  }
+  input:focus { border-color: var(--accent); }
+
+  .btn {
+    display: inline-block; padding: 10px 24px; border-radius: 8px;
+    font-size: 14px; font-weight: 600; cursor: pointer; border: none;
+    transition: all .15s; text-align: center;
+  }
+  .btn-primary { background: var(--accent); color: #fff; width: 100%; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-sm { padding: 6px 16px; font-size: 13px; }
+  .btn-outline {
+    background: none; border: 1px solid var(--border); color: var(--text);
+  }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  .error-msg { color: var(--red); font-size: 13px; margin-bottom: 12px; }
+
+  /* Progress */
+  .progress-bar {
+    width: 100%; height: 8px; background: var(--surface2);
+    border-radius: 4px; overflow: hidden; margin: 12px 0;
+  }
+  .progress-fill {
+    height: 100%; background: var(--accent); border-radius: 4px;
+    transition: width .3s ease;
+  }
+  .stage-text { font-size: 13px; color: var(--text2); }
+  .progress-pct { font-size: 28px; font-weight: 700; color: var(--accent); }
+
+  /* Video list */
+  .video-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 0; border-bottom: 1px solid var(--border);
+  }
+  .video-item:last-child { border-bottom: none; }
+  .video-name { font-weight: 500; font-size: 14px; }
+  .video-meta { font-size: 12px; color: var(--text2); }
+  .badge {
+    font-size: 11px; padding: 3px 10px; border-radius: 20px;
+    font-weight: 600; text-transform: uppercase;
+  }
+  .badge-uploaded { background: #1e3a5f; color: var(--accent); }
+  .badge-processing { background: #3b2f00; color: var(--orange); }
+  .badge-done { background: #0d3320; color: var(--green); }
+
+  /* Upload area */
+  .upload-area {
+    border: 2px dashed var(--border); border-radius: var(--radius);
+    padding: 48px 24px; text-align: center; cursor: pointer;
+    transition: border-color .2s;
+  }
+  .upload-area:hover { border-color: var(--accent); }
+  .upload-area.dragging { border-color: var(--accent); background: rgba(79,140,255,.05); }
+  .upload-icon { font-size: 36px; margin-bottom: 12px; }
+  .upload-hint { font-size: 13px; color: var(--text2); }
+
+  /* Player selection */
+  .preview-container { position: relative; display: inline-block; width: 100%; }
+  .preview-container img { width: 100%; border-radius: 8px; display: block; }
+  .player-buttons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .player-btn {
+    padding: 8px 20px; border-radius: 8px; cursor: pointer;
+    background: var(--surface2); border: 2px solid var(--border);
+    color: var(--text); font-size: 14px; font-weight: 600;
+    transition: all .15s;
+  }
+  .player-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .player-btn.selected { border-color: var(--green); color: var(--green); background: #0d3320; }
+
+  /* Highlights */
+  .highlight-card { margin-bottom: 20px; }
+  .highlight-card video {
+    width: 100%; border-radius: 8px; background: #000; margin-bottom: 10px;
+  }
+  .highlight-actions { display: flex; gap: 10px; align-items: center; }
+  .highlight-type { font-weight: 600; font-size: 15px; flex: 1; }
+
+  /* Job list on dashboard */
+  .job-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid var(--border); cursor: pointer;
+  }
+  .job-row:hover { background: var(--surface2); margin: 0 -10px; padding: 10px; border-radius: 6px; }
+  .job-status { font-size: 12px; }
+
+  /* Back link */
+  .back-link {
+    display: inline-block; color: var(--text2); font-size: 13px;
+    text-decoration: none; margin-bottom: 16px; cursor: pointer;
+  }
+  .back-link:hover { color: var(--text); }
+
+  /* Misc */
+  .text-center { text-align: center; }
+  .mt-16 { margin-top: 16px; }
+  .mb-8 { margin-bottom: 8px; }
+  .mb-16 { margin-bottom: 16px; }
+  .flex-between { display: flex; justify-content: space-between; align-items: center; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header (shown when logged in) -->
+  <div class="header" id="appHeader" style="display:none">
+    <h1>BBall Highlights</h1>
+    <button onclick="logout()">Logout</button>
+  </div>
+
+  <!-- AUTH SCREEN -->
+  <div class="screen active" id="authScreen">
+    <div style="padding-top: 60px">
+      <h1 class="text-center mb-16" style="font-size:28px">BBall Highlights</h1>
+      <p class="text-center mb-16" style="color:var(--text2)">Upload basketball footage, get personalized highlights.</p>
+      <div class="card">
+        <div class="tabs">
+          <div class="tab active" onclick="switchAuthTab('login')">Login</div>
+          <div class="tab" onclick="switchAuthTab('signup')">Sign Up</div>
+        </div>
+        <div id="authError" class="error-msg" style="display:none"></div>
+
+        <!-- Login form -->
+        <form id="loginForm" onsubmit="return handleLogin(event)">
+          <label>Email</label>
+          <input type="email" id="loginEmail" required placeholder="you@example.com">
+          <label>Password</label>
+          <input type="password" id="loginPassword" required placeholder="Your password">
+          <button type="submit" class="btn btn-primary" id="loginBtn">Login</button>
+        </form>
+
+        <!-- Signup form -->
+        <form id="signupForm" style="display:none" onsubmit="return handleSignup(event)">
+          <label>Display Name</label>
+          <input type="text" id="signupName" placeholder="Optional">
+          <label>Email</label>
+          <input type="email" id="signupEmail" required placeholder="you@example.com">
+          <label>Password</label>
+          <input type="password" id="signupPassword" required placeholder="Min 6 characters" minlength="6">
+          <button type="submit" class="btn btn-primary" id="signupBtn">Create Account</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD SCREEN -->
+  <div class="screen" id="dashboardScreen">
+    <div class="flex-between mb-16">
+      <h2>Your Videos</h2>
+      <button class="btn btn-sm btn-outline" onclick="showScreen('uploadScreen')">Upload Video</button>
+    </div>
+    <div id="videoList"><p class="text-center" style="color:var(--text2);padding:40px 0">Loading...</p></div>
+    <div id="jobSection" style="display:none">
+      <h3 class="mb-8" style="margin-top:24px">Jobs</h3>
+      <div id="jobList"></div>
+    </div>
+  </div>
+
+  <!-- UPLOAD SCREEN -->
+  <div class="screen" id="uploadScreen">
+    <span class="back-link" onclick="showScreen('dashboardScreen')">&larr; Back</span>
+    <div class="card">
+      <h2 class="mb-16">Upload Video</h2>
+      <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+        <div class="upload-icon">&#127936;</div>
+        <p style="font-weight:500;margin-bottom:4px">Drop your basketball video here</p>
+        <p class="upload-hint">or click to browse (MP4, MOV)</p>
+      </div>
+      <input type="file" id="fileInput" accept="video/mp4,video/quicktime,.mp4,.mov" style="display:none" onchange="handleFileSelect(event)">
+      <div id="uploadProgress" style="display:none;margin-top:20px">
+        <p class="mb-8" id="uploadFileName" style="font-weight:500"></p>
+        <div class="progress-bar"><div class="progress-fill" id="uploadFill"></div></div>
+        <p class="stage-text" id="uploadStage">Preparing upload...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROCESSING SCREEN -->
+  <div class="screen" id="processingScreen">
+    <span class="back-link" onclick="stopPolling();showScreen('dashboardScreen')">&larr; Back</span>
+    <div class="card text-center" style="padding:48px 24px">
+      <div class="progress-pct" id="progressPct">0%</div>
+      <div class="progress-bar" style="margin:16px auto;max-width:400px">
+        <div class="progress-fill" id="processingFill"></div>
+      </div>
+      <p class="stage-text" id="processingStage">Starting...</p>
+      <p class="mt-16" style="color:var(--text2);font-size:13px">Processing your video. This may take a few minutes.</p>
+    </div>
+  </div>
+
+  <!-- PLAYER SELECTION SCREEN -->
+  <div class="screen" id="selectionScreen">
+    <span class="back-link" onclick="showScreen('dashboardScreen')">&larr; Back</span>
+    <div class="card">
+      <h2 class="mb-8">Select Your Player</h2>
+      <p class="mb-16" style="color:var(--text2);font-size:13px">Click on the player you want highlights for.</p>
+      <div class="preview-container">
+        <img id="previewImg" alt="Annotated preview">
+      </div>
+      <div class="player-buttons" id="playerButtons"></div>
+      <button class="btn btn-primary mt-16" id="confirmPlayerBtn" disabled onclick="confirmPlayer()">Confirm Selection</button>
+    </div>
+  </div>
+
+  <!-- HIGHLIGHTS SCREEN -->
+  <div class="screen" id="highlightsScreen">
+    <span class="back-link" onclick="showScreen('dashboardScreen')">&larr; Back</span>
+    <h2 class="mb-16">Your Highlights</h2>
+    <div id="highlightsList"></div>
+  </div>
+
+</div>
+
+<script>
+const API_BASE = window.location.origin;
+let token = localStorage.getItem('bball_token');
+let currentJobId = null;
+let pollTimer = null;
+let selectedPlayerId = null;
+
+// -- API helper --
+async function api(method, path, body) {
+  const opts = { method, headers: {} };
+  if (token) opts.headers['Authorization'] = 'Bearer ' + token;
+  if (body) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(API_BASE + path, opts);
+  if (res.status === 401) {
+    localStorage.removeItem('bball_token');
+    token = null;
+    showScreen('authScreen');
+    throw new Error('Unauthorized');
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Request failed');
+  }
+  return res.json();
+}
+
+// Fix GCS URLs for local dev (fake-gcs-server -> localhost)
+function fixGcsUrl(url) {
+  if (!url) return url;
+  return url.replace('http://fake-gcs-server:', 'http://localhost:');
+}
+
+// -- Screen management --
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const hdr = document.getElementById('appHeader');
+  hdr.style.display = (id === 'authScreen') ? 'none' : 'flex';
+
+  if (id === 'dashboardScreen') loadDashboard();
+}
+
+// -- Auth --
+function switchAuthTab(tab) {
+  const tabs = document.querySelectorAll('.tab');
+  tabs[0].classList.toggle('active', tab === 'login');
+  tabs[1].classList.toggle('active', tab === 'signup');
+  document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('signupForm').style.display = tab === 'signup' ? 'block' : 'none';
+  document.getElementById('authError').style.display = 'none';
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById('authError');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true;
+  try {
+    const data = await api('POST', '/auth/login', {
+      email: document.getElementById('loginEmail').value,
+      password: document.getElementById('loginPassword').value,
+    });
+    token = data.access_token;
+    localStorage.setItem('bball_token', token);
+    showScreen('dashboardScreen');
+  } catch (err) {
+    showAuthError(err.message);
+  } finally {
+    btn.disabled = false;
+  }
+  return false;
+}
+
+async function handleSignup(e) {
+  e.preventDefault();
+  const btn = document.getElementById('signupBtn');
+  btn.disabled = true;
+  try {
+    const data = await api('POST', '/auth/signup', {
+      email: document.getElementById('signupEmail').value,
+      password: document.getElementById('signupPassword').value,
+      display_name: document.getElementById('signupName').value || null,
+    });
+    token = data.access_token;
+    localStorage.setItem('bball_token', token);
+    showScreen('dashboardScreen');
+  } catch (err) {
+    showAuthError(err.message);
+  } finally {
+    btn.disabled = false;
+  }
+  return false;
+}
+
+function logout() {
+  localStorage.removeItem('bball_token');
+  token = null;
+  stopPolling();
+  showScreen('authScreen');
+}
+
+// -- Dashboard --
+async function loadDashboard() {
+  try {
+    const videos = await api('GET', '/videos');
+    const container = document.getElementById('videoList');
+    if (!videos.length) {
+      container.innerHTML = '<div class="text-center" style="padding:40px 0;color:var(--text2)">No videos yet. Upload your first basketball video!</div>';
+      document.getElementById('jobSection').style.display = 'none';
+      return;
+    }
+    let html = '';
+    for (const v of videos) {
+      const badgeClass = v.status === 'done' ? 'badge-done' : v.status === 'processing' ? 'badge-processing' : 'badge-uploaded';
+      const dur = v.duration_secs ? Math.round(v.duration_secs) + 's' : '';
+      html += `<div class="video-item">
+        <div>
+          <div class="video-name">${escHtml(v.filename || 'Video')}</div>
+          <div class="video-meta">${dur} ${v.resolution || ''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="badge ${badgeClass}">${v.status}</span>
+          ${v.status === 'uploaded' ? `<button class="btn btn-sm btn-outline" onclick="startJob('${v.id}')">Process</button>` : ''}
+        </div>
+      </div>`;
+    }
+    container.innerHTML = html;
+
+    // Load jobs
+    await loadJobs(videos);
+  } catch (err) {
+    console.error('Dashboard load failed:', err);
+  }
+}
+
+async function loadJobs(videos) {
+  // We don't have a list-all-jobs endpoint, so we'll track jobs locally
+  const jobIds = JSON.parse(localStorage.getItem('bball_jobs') || '[]');
+  if (!jobIds.length) {
+    document.getElementById('jobSection').style.display = 'none';
+    return;
+  }
+  const jobList = document.getElementById('jobList');
+  let html = '';
+  const validJobs = [];
+  for (const jid of jobIds) {
+    try {
+      const job = await api('GET', '/jobs/' + jid);
+      validJobs.push(jid);
+      const statusColor = job.status === 'completed' ? 'var(--green)' :
+                          job.status === 'failed' ? 'var(--red)' :
+                          job.status === 'awaiting_selection' ? 'var(--orange)' : 'var(--accent)';
+      html += `<div class="job-row" onclick="handleJobClick('${jid}','${job.status}')">
+        <div>
+          <div style="font-weight:500;font-size:14px">Job ${jid.slice(0,8)}...</div>
+          <div style="font-size:12px;color:var(--text2)">${job.stage || job.status}</div>
+        </div>
+        <span class="job-status" style="color:${statusColor}">${job.status} (${job.progress}%)</span>
+      </div>`;
+    } catch (e) { /* job may have been deleted */ }
+  }
+  localStorage.setItem('bball_jobs', JSON.stringify(validJobs));
+  if (html) {
+    document.getElementById('jobSection').style.display = 'block';
+    jobList.innerHTML = html;
+  } else {
+    document.getElementById('jobSection').style.display = 'none';
+  }
+}
+
+function handleJobClick(jobId, status) {
+  currentJobId = jobId;
+  if (status === 'completed') {
+    loadHighlights(jobId);
+  } else if (status === 'awaiting_selection') {
+    loadPreview(jobId);
+  } else if (status === 'failed') {
+    // nothing
+  } else {
+    startPolling(jobId);
+    showScreen('processingScreen');
+  }
+}
+
+// -- Upload --
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) uploadVideo(file);
+}
+
+// Drag & drop
+(function() {
+  const area = document.getElementById('uploadArea');
+  if (!area) return;
+  ['dragenter','dragover'].forEach(ev => area.addEventListener(ev, e => { e.preventDefault(); area.classList.add('dragging'); }));
+  ['dragleave','drop'].forEach(ev => area.addEventListener(ev, e => { e.preventDefault(); area.classList.remove('dragging'); }));
+  area.addEventListener('drop', e => {
+    const file = e.dataTransfer.files[0];
+    if (file) uploadVideo(file);
+  });
+})();
+
+async function uploadVideo(file) {
+  document.getElementById('uploadProgress').style.display = 'block';
+  document.getElementById('uploadFileName').textContent = file.name;
+  document.getElementById('uploadFill').style.width = '0%';
+  document.getElementById('uploadStage').textContent = 'Getting upload URL...';
+
+  try {
+    // 1. Get signed URL
+    const { video_id, upload_url } = await api('POST', '/videos/upload-url', {
+      filename: file.name,
+      content_type: file.type || 'video/mp4',
+    });
+
+    document.getElementById('uploadStage').textContent = 'Uploading...';
+
+    // 2. Upload to GCS
+    await uploadToGCS(file, fixGcsUrl(upload_url), file.type || 'video/mp4');
+
+    document.getElementById('uploadStage').textContent = 'Confirming...';
+    document.getElementById('uploadFill').style.width = '100%';
+
+    // 3. Confirm upload
+    await api('POST', '/videos/' + video_id + '/confirm');
+
+    document.getElementById('uploadStage').textContent = 'Upload complete!';
+
+    // 4. Start processing job
+    const job = await api('POST', '/jobs', { video_id });
+    saveJob(job.id);
+    currentJobId = job.id;
+
+    // Transition to processing screen
+    setTimeout(() => {
+      startPolling(job.id);
+      showScreen('processingScreen');
+    }, 500);
+
+  } catch (err) {
+    document.getElementById('uploadStage').textContent = 'Error: ' + err.message;
+    document.getElementById('uploadStage').style.color = 'var(--red)';
+  }
+}
+
+function uploadToGCS(file, url, contentType) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', url);
+    xhr.setRequestHeader('Content-Type', contentType);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const pct = Math.round(e.loaded / e.total * 100);
+        document.getElementById('uploadFill').style.width = pct + '%';
+        document.getElementById('uploadStage').textContent = 'Uploading... ' + pct + '%';
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error('Upload failed: HTTP ' + xhr.status));
+    };
+    xhr.onerror = () => reject(new Error('Upload network error'));
+    xhr.send(file);
+  });
+}
+
+// -- Job processing --
+async function startJob(videoId) {
+  try {
+    const job = await api('POST', '/jobs', { video_id: videoId });
+    saveJob(job.id);
+    currentJobId = job.id;
+    startPolling(job.id);
+    showScreen('processingScreen');
+  } catch (err) {
+    alert('Failed to start job: ' + err.message);
+  }
+}
+
+function saveJob(jobId) {
+  const jobs = JSON.parse(localStorage.getItem('bball_jobs') || '[]');
+  if (!jobs.includes(jobId)) {
+    jobs.unshift(jobId);
+    localStorage.setItem('bball_jobs', JSON.stringify(jobs));
+  }
+}
+
+function startPolling(jobId) {
+  stopPolling();
+  currentJobId = jobId;
+  pollJob();
+  pollTimer = setInterval(pollJob, 3000);
+}
+
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+async function pollJob() {
+  if (!currentJobId) return;
+  try {
+    const p = await api('GET', '/jobs/' + currentJobId + '/progress');
+    document.getElementById('progressPct').textContent = p.progress + '%';
+    document.getElementById('processingFill').style.width = p.progress + '%';
+    document.getElementById('processingStage').textContent = p.stage || p.status;
+
+    if (p.status === 'awaiting_selection') {
+      stopPolling();
+      loadPreview(currentJobId);
+    } else if (p.status === 'completed') {
+      stopPolling();
+      loadHighlights(currentJobId);
+    } else if (p.status === 'failed') {
+      stopPolling();
+      document.getElementById('processingStage').textContent = 'Processing failed.';
+      document.getElementById('processingStage').style.color = 'var(--red)';
+    }
+  } catch (err) {
+    console.error('Poll error:', err);
+  }
+}
+
+// -- Player selection --
+async function loadPreview(jobId) {
+  currentJobId = jobId;
+  selectedPlayerId = null;
+  showScreen('selectionScreen');
+
+  try {
+    const data = await api('GET', '/jobs/' + jobId + '/preview');
+    const img = document.getElementById('previewImg');
+    img.src = fixGcsUrl(data.preview_url);
+
+    const btns = document.getElementById('playerButtons');
+    btns.innerHTML = '';
+    for (const p of data.players) {
+      const btn = document.createElement('button');
+      btn.className = 'player-btn';
+      btn.textContent = 'Player #' + p.track_id;
+      btn.dataset.trackId = p.track_id;
+      btn.onclick = () => selectPlayer(p.track_id);
+      btns.appendChild(btn);
+    }
+    document.getElementById('confirmPlayerBtn').disabled = true;
+  } catch (err) {
+    console.error('Preview load failed:', err);
+  }
+}
+
+function selectPlayer(trackId) {
+  selectedPlayerId = trackId;
+  document.querySelectorAll('.player-btn').forEach(b => {
+    b.classList.toggle('selected', parseInt(b.dataset.trackId) === trackId);
+  });
+  document.getElementById('confirmPlayerBtn').disabled = false;
+}
+
+async function confirmPlayer() {
+  if (!selectedPlayerId || !currentJobId) return;
+  const btn = document.getElementById('confirmPlayerBtn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+  try {
+    await api('POST', '/jobs/' + currentJobId + '/select-player', {
+      player_track_id: selectedPlayerId,
+    });
+    // Go to processing screen for highlight generation
+    showScreen('processingScreen');
+    document.getElementById('progressPct').textContent = '62%';
+    document.getElementById('processingFill').style.width = '62%';
+    document.getElementById('processingStage').textContent = 'Generating highlights...';
+    startPolling(currentJobId);
+  } catch (err) {
+    alert('Failed: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Confirm Selection';
+  }
+}
+
+// -- Highlights --
+async function loadHighlights(jobId) {
+  currentJobId = jobId;
+  showScreen('highlightsScreen');
+  const container = document.getElementById('highlightsList');
+  container.innerHTML = '<p class="text-center" style="color:var(--text2);padding:20px">Loading highlights...</p>';
+
+  try {
+    const highlights = await api('GET', '/highlights?job_id=' + jobId);
+    if (!highlights.length) {
+      container.innerHTML = '<p class="text-center" style="color:var(--text2);padding:40px">No highlights generated yet.</p>';
+      return;
+    }
+    let html = '';
+    for (const h of highlights) {
+      const url = fixGcsUrl(h.download_url);
+      const label = h.highlight_type === 'game' ? 'Game Highlights' : 'Player Highlights';
+      const size = h.file_size_bytes ? (h.file_size_bytes / 1024 / 1024).toFixed(1) + ' MB' : '';
+      html += `<div class="highlight-card card">
+        <video controls preload="metadata" src="${escHtml(url)}"></video>
+        <div class="highlight-actions">
+          <span class="highlight-type">${label}</span>
+          <span style="color:var(--text2);font-size:13px">${size}</span>
+          <a href="${escHtml(url)}" download class="btn btn-sm btn-outline">Download</a>
+        </div>
+      </div>`;
+    }
+    container.innerHTML = html;
+  } catch (err) {
+    container.innerHTML = '<p class="text-center" style="color:var(--red)">Failed to load highlights.</p>';
+  }
+}
+
+// -- Utilities --
+function escHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+// -- Init --
+if (token) {
+  // Verify token is still valid
+  api('GET', '/auth/me').then(() => {
+    showScreen('dashboardScreen');
+  }).catch(() => {
+    showScreen('authScreen');
+  });
+} else {
+  showScreen('authScreen');
+}
+</script>
+</body>
+</html>

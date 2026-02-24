@@ -1,3 +1,5 @@
+import asyncio
+import json
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -6,11 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.storage import download_blob_bytes, generate_presigned_download_url
 from app.models.job import Job
 from app.models.user import User
 from app.models.video import Video
 from app.schemas.job import (
     CreateJobRequest,
+    JobPreviewResponse,
     JobProgressResponse,
     JobResponse,
     SelectPlayerRequest,
@@ -77,6 +81,29 @@ async def get_job_progress(
         progress=job.progress,
         stage=job.stage,
     )
+
+
+@router.get("/{job_id}/preview", response_model=JobPreviewResponse)
+async def get_job_preview(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    job = await _get_user_job(db, job_id, current_user.id)
+
+    if job.status not in ("awaiting_selection", "processing", "completed"):
+        raise HTTPException(
+            status_code=400, detail="Preview not available for this job status"
+        )
+
+    preview_key = f"previews/{job_id}/preview.jpg"
+    preview_url = await asyncio.to_thread(generate_presigned_download_url, preview_key)
+
+    players_key = f"previews/{job_id}/players.json"
+    players_bytes = await asyncio.to_thread(download_blob_bytes, players_key)
+    players = json.loads(players_bytes) if players_bytes else []
+
+    return JobPreviewResponse(preview_url=preview_url, players=players)
 
 
 @router.post("/{job_id}/select-player", response_model=JobResponse)

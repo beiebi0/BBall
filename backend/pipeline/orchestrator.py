@@ -9,7 +9,7 @@ from pipeline.detection.ball_detector import BallDetector
 from pipeline.detection.player_detector import PlayerDetector
 from pipeline.detection.rim_detector import RimDetector
 from pipeline.events.event_detector import EventDetector
-from pipeline.models import BoundingBox, FrameData, GameEvent, ClipSpec
+from pipeline.models import BoundingBox, FrameData, GameEvent, ClipSpec, PlayerDetection
 from pipeline.tracking.possession import PossessionTracker
 from pipeline.video.clip_extractor import ClipExtractor
 
@@ -90,6 +90,32 @@ class PipelineOrchestrator:
 
         if not ret:
             return None
+
+        _, jpeg = cv2.imencode(".jpg", frame)
+        return jpeg.tobytes()
+
+    def extract_annotated_preview(self, video_path: str, frame_data: FrameData) -> Optional[bytes]:
+        """Extract a frame and draw green bounding boxes + track_id labels on each player.
+
+        Returns JPEG bytes or None if the frame can't be read.
+        """
+        cap = cv2.VideoCapture(video_path)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_data.frame_index)
+        ret, frame = cap.read()
+        cap.release()
+
+        if not ret:
+            return None
+
+        for player in frame_data.players:
+            bb = player.bbox
+            x1, y1, x2, y2 = int(bb.x1), int(bb.y1), int(bb.x2), int(bb.y2)
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            label = f"#{player.track_id}"
+            cv2.putText(
+                frame, label, (x1, y1 - 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2,
+            )
 
         _, jpeg = cv2.imencode(".jpg", frame)
         return jpeg.tobytes()

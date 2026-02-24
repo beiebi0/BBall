@@ -28,3 +28,8 @@ class JobProgressResponse(BaseModel):
     status: str
     progress: int
     stage: str | None
+
+
+class JobPreviewResponse(BaseModel):
+    preview_url: str
+    players: list[dict]

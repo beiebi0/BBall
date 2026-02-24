@@ -16,6 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Start all services (FastAPI, Pub/Sub subscriber worker, Postgres, GCS emulator, Pub/Sub emulator)
 cd backend && docker compose up --build
 
+# Web client at http://localhost:8000 (redirects to /static/index.html)
 # API available at http://localhost:8000
 # Fake GCS server at http://localhost:4443
 # Pub/Sub emulator at localhost:8085
@@ -103,6 +104,10 @@ Set in `docker-compose.yml` for containerized dev. For local dev, use `backend/.
 - `PUBSUB_PROJECT_ID`, `PUBSUB_EMULATOR_HOST`, `PUBSUB_TOPIC_DETECTION`, `PUBSUB_TOPIC_HIGHLIGHTS`, `PUBSUB_SUBSCRIPTION_DETECTION`, `PUBSUB_SUBSCRIPTION_HIGHLIGHTS`
 - `JWT_SECRET`, `ROBOFLOW_API_KEY` (optional)
 
+## Web Client
+
+A single-file SPA (`backend/static/index.html`) is served at `/static/index.html` (root `/` redirects there). It exercises the full backend flow: auth, upload, processing progress, player selection, and highlight viewing. No build tools needed. For local dev, GCS signed URLs are automatically fixed (replaces `fake-gcs-server` hostname with `localhost`).
+
 ## Project Status
 
-Phase 1 (backend) is built but not yet verified end-to-end. Phase 2 (React Native iOS app) has not been started.
+Phase 1 (backend) is built but not yet verified end-to-end. A web client exists for testing. Phase 2 (React Native iOS app) has not been started.

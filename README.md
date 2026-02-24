@@ -79,6 +79,10 @@ cd backend
 alembic upgrade head
 ```
 
+### Web Client
+
+Open `http://localhost:8000` in your browser. This serves a built-in single-page web client at `/static/index.html` for testing the full flow (signup, upload, processing, player selection, highlights).
+
 ### API Health Check
 
 ```bash
@@ -112,7 +116,8 @@ See `backend/deploy.sh` for details.
 4. `POST /videos/{id}/confirm` — Confirm upload complete
 5. `POST /jobs` — Start processing (publishes Pub/Sub message)
 6. `GET /jobs/{id}/progress` — Poll processing status (every 3s)
-7. `POST /jobs/{id}/select-player` — Select player + team color
+7. `GET /jobs/{id}/preview` — Get annotated preview image + detected players
+8. `POST /jobs/{id}/select-player` — Select player + team color
 8. `GET /highlights?job_id=X` — Get highlight reel download URLs
 
 ## Processing Pipeline
