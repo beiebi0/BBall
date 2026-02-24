@@ -36,6 +36,7 @@ Single migration exists: `001_initial_schema.py`. Alembic uses the sync Postgres
 ```bash
 # Mocked unit tests (no external deps needed)
 cd backend && python -m pytest pipeline/detection/test_rim_detector.py -v
+cd backend && python -m pytest pipeline/test_detection_cache.py -v
 cd backend && python -m pytest app/core/test_storage.py app/core/test_pubsub.py app/workers/test_subscriber.py -v
 
 # Tests requiring YOLO weights (auto-downloaded on first run)
@@ -66,8 +67,8 @@ No linter or formatter is configured.
 
 The processing pipeline splits at a user-interaction point:
 
-1. **`process_video_detection`** — runs player/ball/rim detection + tracking → sets job to `awaiting_selection` → returns annotated frame so user can pick their player
-2. **`process_video_highlights`** — triggered after player selection → event detection → clip extraction → uploads highlight reels to GCS
+1. **`process_video_detection`** — runs player/ball/rim detection + tracking → caches results to GCS (`detection_cache/{job_id}/frames.json`) → sets job to `awaiting_selection` → returns annotated frame so user can pick their player
+2. **`process_video_highlights`** — triggered after player selection → loads cached detection data from GCS (falls back to full re-detection if missing) → event detection → clip extraction → uploads highlight reels to GCS
 
 API routes publish messages to Pub/Sub topics; the subscriber worker (`app/workers/subscriber.py`) pulls messages from subscriptions and dispatches to task functions. Progress is reported via `PipelineOrchestrator` callbacks that update the job row, polled by `GET /jobs/{id}/progress`.
 

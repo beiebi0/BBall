@@ -133,6 +133,16 @@ Created deployment infrastructure for running the backend on GCP Cloud Run with 
 - **Alembic env override** — `env.py` now reads `DATABASE_URL_SYNC` from environment to override `alembic.ini` URL, enabling Cloud SQL migrations without editing config files.
 - **Same image, two services** — API uses default Dockerfile CMD (`uvicorn`); Worker overrides via Cloud Run `--command` flag. Worker runs with `--no-cpu-throttling` and `min-instances=1` since the pull subscriber must be always-on.
 
+### Step 13 — Detection Cache Between Phases
+
+Eliminated redundant detection in the two-phase pipeline. Previously, Phase 2 (`process_video_highlights`) re-ran the entire detection pipeline from scratch — re-loading all YOLO models and re-processing every frame — because Phase 1 results were discarded. For a 5-minute video at 30fps, this meant ~27,000 redundant DNN inferences.
+
+**Fix:**
+- **Serialization** — Added `to_dict()`/`from_dict()` methods to `BoundingBox`, `PlayerDetection`, and `FrameData` dataclasses, plus top-level `serialize_detection_cache()`/`deserialize_detection_cache()` functions in `pipeline/models.py`
+- **Phase 1 caching** — After `run_detection()`, the worker serializes the `FrameData` list + rim position to JSON and uploads to GCS at `detection_cache/{job_id}/frames.json`
+- **Phase 2 cache loading** — Worker downloads the cache, deserializes it, and calls the new `orchestrator.run_highlights_from_cache()` which skips straight to event detection + clip extraction. Falls back to `run_full_pipeline()` if cache is missing.
+- **Tests** — 7 unit tests covering serialization round-trips and verifying the cache path skips `run_detection()`
+
 ### Phase 1 Result
 
 A fully functional backend ready to be consumed by a mobile client. The complete commit history:

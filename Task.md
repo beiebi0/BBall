@@ -36,6 +36,7 @@
 - [x] `PipelineOrchestrator.extract_annotated_preview()` — draws green bounding boxes + track IDs on detected players
 - [x] Worker produces `players.json` alongside annotated preview during detection phase
 - [x] Static file serving in FastAPI (`/static`, root redirect to `/static/index.html`)
+- [x] Detection cache between pipeline phases — Phase 1 serializes `FrameData` + rim position to GCS; Phase 2 loads cache and skips re-detection (eliminates ~50% redundant YOLO inference)
 
 ## Next Steps
 

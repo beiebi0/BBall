@@ -9,7 +9,7 @@ from pipeline.detection.ball_detector import BallDetector
 from pipeline.detection.player_detector import PlayerDetector
 from pipeline.detection.rim_detector import RimDetector
 from pipeline.events.event_detector import EventDetector
-from pipeline.models import BoundingBox, FrameData, GameEvent, ClipSpec, PlayerDetection
+from pipeline.models import BoundingBox, FrameData, GameEvent, ClipSpec, PlayerDetection, serialize_detection_cache, deserialize_detection_cache
 from pipeline.tracking.possession import PossessionTracker
 from pipeline.video.clip_extractor import ClipExtractor
 
@@ -253,6 +253,62 @@ class PipelineOrchestrator:
 
         self._report(98, "Reels compiled")
         return results
+
+    def run_highlights_from_cache(
+        self,
+        video_path: str,
+        output_dir: str,
+        cached_frames: list[FrameData],
+        rim_position: Optional[BoundingBox] = None,
+        selected_player_id: Optional[int] = None,
+    ) -> dict:
+        """
+        Run event detection + clip extraction using cached detection results.
+        Skips the expensive detection phase entirely.
+        """
+        os.makedirs(output_dir, exist_ok=True)
+        self._rim_position = rim_position
+
+        video_info = self.get_video_info(video_path)
+        self._report(60, "Detection loaded from cache")
+
+        # Stage 3: Event detection
+        events, clip_specs = self.run_event_detection(
+            cached_frames, video_info["fps"], video_info["duration"]
+        )
+
+        # Stage 4-5: Clip extraction + compilation
+        reel_paths = self.run_clip_extraction(video_path, clip_specs, output_dir)
+
+        # Player-specific reel
+        if selected_player_id is not None and clip_specs:
+            event_detector = EventDetector(
+                fps=video_info["fps"],
+                clip_padding_before=self.clip_padding_before,
+                clip_padding_after=self.clip_padding_after,
+                rim_position=self._rim_position,
+            )
+            player_clips = event_detector.filter_clips_for_player(
+                clip_specs, selected_player_id
+            )
+            if player_clips:
+                self._report(95, "Compiling player reel")
+                extractor = ClipExtractor(
+                    work_dir=os.path.join(output_dir, "player_clips")
+                )
+                player_clip_paths = extractor.extract_clips(video_path, player_clips)
+                player_reel_path = os.path.join(output_dir, "player_highlights.mp4")
+                extractor.concatenate_clips(player_clip_paths, player_reel_path)
+                reel_paths["player_reel"] = player_reel_path
+
+        self._report(100, "Pipeline complete")
+
+        return {
+            "video_info": video_info,
+            "event_count": len(events),
+            "clip_count": len(clip_specs),
+            "reel_paths": reel_paths,
+        }
 
     def run_full_pipeline(
         self,

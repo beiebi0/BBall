@@ -86,6 +86,15 @@ def process_video_detection(job_id: str):
         # Run detection
         all_frames = orchestrator.run_detection(local_video)
 
+        # Cache detection results to GCS so Phase 2 can skip re-detection
+        from pipeline.models import serialize_detection_cache
+        cache_json = serialize_detection_cache(all_frames, orchestrator._rim_position)
+        cache_path = os.path.join(work_dir, "detection_cache.json")
+        with open(cache_path, "w") as f:
+            f.write(cache_json)
+        upload_file(cache_path, f"detection_cache/{job_id}/frames.json")
+        logger.info("Detection cache uploaded for job %s (%d frames)", job_id, len(all_frames))
+
         # Pick the middle frame for annotated preview
         mid = all_frames[len(all_frames) // 2] if all_frames else None
 
@@ -188,11 +197,28 @@ def process_video_highlights(job_id: str):
             progress_callback=progress_cb,
         )
 
-        result = orchestrator.run_full_pipeline(
-            video_path=local_video,
-            output_dir=output_dir,
-            selected_player_id=job.selected_player_track_id,
-        )
+        # Try to load cached detection results from Phase 1
+        from app.core.storage import download_blob_bytes
+        from pipeline.models import deserialize_detection_cache
+
+        cache_data = download_blob_bytes(f"detection_cache/{job_id}/frames.json")
+        if cache_data:
+            logger.info("Loaded detection cache for job %s, skipping re-detection", job_id)
+            cached_frames, rim_position = deserialize_detection_cache(cache_data.decode("utf-8"))
+            result = orchestrator.run_highlights_from_cache(
+                video_path=local_video,
+                output_dir=output_dir,
+                cached_frames=cached_frames,
+                rim_position=rim_position,
+                selected_player_id=job.selected_player_track_id,
+            )
+        else:
+            logger.warning("No detection cache for job %s, running full pipeline", job_id)
+            result = orchestrator.run_full_pipeline(
+                video_path=local_video,
+                output_dir=output_dir,
+                selected_player_id=job.selected_player_track_id,
+            )
 
         # Upload reels to GCS and create highlight records
         for reel_type, reel_path in result["reel_paths"].items():
