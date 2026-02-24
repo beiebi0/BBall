@@ -1,6 +1,7 @@
 import datetime
 import json
 
+import google.auth
 from google.cloud import storage
 from google.oauth2 import service_account
 
@@ -35,6 +36,18 @@ def _get_bucket():
     return get_gcs_client().bucket(settings.gcs_bucket)
 
 
+def _signing_kwargs() -> dict:
+    """Return extra kwargs for generate_signed_url when running on Cloud Run.
+
+    Cloud Run uses Compute Engine credentials which lack a private key.
+    Passing the service_account_email triggers the IAM SignBlob API instead.
+    """
+    if settings.gcs_endpoint_url or settings.gcs_service_account_json:
+        return {}
+    credentials, _ = google.auth.default()
+    return {"service_account_email": credentials.service_account_email}
+
+
 def generate_presigned_upload_url(
     s3_key: str, content_type: str = "video/mp4", expires_in: int = 3600
 ) -> str:
@@ -44,6 +57,7 @@ def generate_presigned_upload_url(
         expiration=datetime.timedelta(seconds=expires_in),
         method="PUT",
         content_type=content_type,
+        **_signing_kwargs(),
     )
     return url
 
@@ -54,6 +68,7 @@ def generate_presigned_download_url(s3_key: str, expires_in: int = 3600) -> str:
         version="v4",
         expiration=datetime.timedelta(seconds=expires_in),
         method="GET",
+        **_signing_kwargs(),
     )
     return url
 
