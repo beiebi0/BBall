@@ -7,14 +7,14 @@
 - [x] Project scaffolding (Docker Compose, FastAPI, Dockerfile, requirements.txt)
 - [x] Database models + Alembic migration (users, videos, jobs, events, highlights)
 - [x] JWT authentication (signup, login, get current user)
-- [x] S3 presigned URL upload flow (upload-url, confirm, list videos)
+- [x] S3 presigned URL upload flow (upload-url, confirm, list videos) — **migrated to GCS signed URLs**
 - [x] Player detection module (YOLO11m + BotSORT)
 - [x] Ball detection module (YOLO11m COCO class 32 + YOLO11n-pose filtering)
 - [x] Possession tracking with temporal smoothing (6/10 majority)
 - [x] MVP event detection (possession changes, potential scores, fast breaks)
 - [x] ffmpeg clip extraction + reel concatenation
 - [x] Pipeline orchestrator with progress stages (0-100%)
-- [x] Celery tasks (process_video_detection, process_video_highlights)
+- [x] Celery tasks (process_video_detection, process_video_highlights) — **migrated to GCP Pub/Sub**
 - [x] Jobs API (create, status, progress polling, player selection)
 - [x] Highlights API (list, get, download)
 - [x] Project docs (README, Master_Plan, User_journey, Implementation_plan, Task, Rules)
@@ -24,6 +24,7 @@
 - [x] Integrate Roboflow rim detection (`RimDetector`, orchestrator wiring, rim-proximity scoring in `EventDetector`, config settings, task plumbing)
 - [x] Add unit tests for RimDetector (test_rim_detector.py — 15 tests)
 - [x] Fix Docker Compose stack for first run (`.dockerignore`, model path defaults, `ROBOFLOW_API_KEY` env, `pose_model_path` wiring)
+- [x] Migrate from AWS S3 + Celery/Redis to GCS + Pub/Sub (storage, task queue, Docker Compose, tests, docs)
 
 ## Next Steps
 
@@ -31,14 +32,14 @@
 
 The entire Phase 1 backend has been built but **never run or tested**. Before moving to the iOS app, verify everything actually works end-to-end.
 
-- [ ] Spin up Docker Compose stack (Postgres, Redis, MinIO, API, Worker)
+- [ ] Spin up Docker Compose stack (Postgres, fake-gcs-server, Pub/Sub emulator, API, Worker)
 - [ ] Run Alembic migration against live database
 - [ ] Test auth flow: signup → login → token works on protected routes
-- [ ] Test upload flow: get presigned URL → upload a video to MinIO → confirm
-- [ ] Test job creation: create job → verify Celery task gets queued
+- [ ] Test upload flow: get signed URL → upload a video to fake-gcs-server → confirm
+- [ ] Test job creation: create job → verify Pub/Sub message published, worker picks it up
 - [ ] Test detection pipeline: run worker on a real basketball video, check progress updates
 - [ ] Test player selection: submit player track ID, verify highlight generation kicks off
-- [ ] Test highlights: verify reels are uploaded to S3 and download URLs work
+- [ ] Test highlights: verify reels are uploaded to GCS and download URLs work
 - [ ] Fix any bugs found during testing
 
 ### Phase 2: iOS App

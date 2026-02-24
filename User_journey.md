@@ -14,11 +14,11 @@ Tapping **Upload** opens the iPhone Photos picker. The user selects a basketball
 
 ## 3. Upload with Progress
 
-The app requests a **presigned S3 upload URL** (`POST /videos/upload-url`) and uploads the video directly to S3. A progress indicator shows upload percentage. Once the upload completes, the app confirms it (`POST /videos/{video_id}/confirm`), setting the video status to `uploaded`.
+The app requests a **signed GCS upload URL** (`POST /videos/upload-url`) and uploads the video directly to Google Cloud Storage. A progress indicator shows upload percentage. Once the upload completes, the app confirms it (`POST /videos/{video_id}/confirm`), setting the video status to `uploaded`.
 
 ## 4. Start Processing
 
-A processing job is created (`POST /jobs`) which queues the video for detection and tracking via a Celery worker (`process_video_detection`). The pipeline first detects the basketball rim position (if configured) for more accurate scoring detection, then runs player and ball detection/tracking. The job status moves through `queued` → `processing`, with `progress` (0-100) and `stage` descriptions updated as the pipeline runs. The app polls `GET /jobs/{job_id}/progress` to display a real-time progress bar.
+A processing job is created (`POST /jobs`) which publishes a Pub/Sub message to trigger detection and tracking via the subscriber worker (`process_video_detection`). The pipeline first detects the basketball rim position (if configured) for more accurate scoring detection, then runs player and ball detection/tracking. The job status moves through `queued` → `processing`, with `progress` (0-100) and `stage` descriptions updated as the pipeline runs. The app polls `GET /jobs/{job_id}/progress` to display a real-time progress bar.
 
 ## 5. Select Your Player
 
@@ -26,7 +26,7 @@ When detection completes, the job transitions to `awaiting_selection`. The app p
 
 ## 6. Highlight Generation
 
-After player selection, the job resumes processing (`process_video_highlights` Celery task). The progress bar continues updating as the pipeline generates highlight clips.
+After player selection, the job resumes processing (`process_video_highlights` via Pub/Sub). The progress bar continues updating as the pipeline generates highlight clips.
 
 ## 7. Download Highlight Reels
 
@@ -37,7 +37,7 @@ When the job reaches `completed`, the app fetches the results via `GET /highligh
 | **Full game** | Best moments from the entire game |
 | **Personal** | Clips featuring the selected player |
 
-Each highlight has a **presigned download URL**. The user taps **Download** (or **Share**) to save the reel to their camera roll or share it directly.
+Each highlight has a **signed download URL**. The user taps **Download** (or **Share**) to save the reel to their camera roll or share it directly.
 
 ---
 

@@ -12,34 +12,49 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
-  redis:
-    image: redis:7-alpine
+  fake-gcs-server:
+    image: fsouza/fake-gcs-server:latest
+    command: ["-scheme", "http", "-port", "4443", "-external-url", "http://localhost:4443"]
     ports:
-      - "6379:6379"
-
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "4443:4443"
     volumes:
-      - miniodata:/data
+      - gcsdata:/data
 
-  createbucket:
-    image: minio/mc:latest
+  pubsub-emulator:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    command: ["gcloud", "beta", "emulators", "pubsub", "start", "--host-port=0.0.0.0:8085", "--project=bball-local"]
+    ports:
+      - "8085:8085"
+
+  create-gcs-bucket:
+    image: curlimages/curl:latest
     depends_on:
-      - minio
+      - fake-gcs-server
     entrypoint: >
       /bin/sh -c "
       sleep 3;
-      mc alias set local http://minio:9000 minioadmin minioadmin;
-      mc mb local/bball-videos --ignore-existing;
-      mc anonymous set download local/bball-videos;
-      exit 0;
+      curl -s -X POST http://fake-gcs-server:4443/storage/v1/b?project=bball-local
+        -H 'Content-Type: application/json'
+        -d '{\"name\": \"bball-videos\"}';
+      echo ' Bucket created';
+      "
+
+  setup-pubsub:
+    image: curlimages/curl:latest
+    depends_on:
+      - pubsub-emulator
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      curl -s -X PUT http://pubsub-emulator:8085/v1/projects/bball-local/topics/video-detection;
+      curl -s -X PUT http://pubsub-emulator:8085/v1/projects/bball-local/topics/video-highlights;
+      curl -s -X PUT http://pubsub-emulator:8085/v1/projects/bball-local/subscriptions/video-detection-sub
+        -H 'Content-Type: application/json'
+        -d '{\"topic\": \"projects/bball-local/topics/video-detection\", \"ackDeadlineSeconds\": 600}';
+      curl -s -X PUT http://pubsub-emulator:8085/v1/projects/bball-local/subscriptions/video-highlights-sub
+        -H 'Content-Type: application/json'
+        -d '{\"topic\": \"projects/bball-local/topics/video-highlights\", \"ackDeadlineSeconds\": 600}';
+      echo ' Pub/Sub topics and subscriptions created';
       "
 
   api:
@@ -49,16 +64,18 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://bball:bball@postgres:5432/bball
       DATABASE_URL_SYNC: postgresql://bball:bball@postgres:5432/bball
-      REDIS_URL: redis://redis:6379/0
-      S3_ENDPOINT_URL: http://minio:9000
-      AWS_ACCESS_KEY_ID: minioadmin
-      AWS_SECRET_ACCESS_KEY: minioadmin
-      S3_BUCKET: bball-videos
+      GCS_BUCKET: bball-videos
+      GCS_PROJECT_ID: bball-local
+      GCS_ENDPOINT_URL: http://fake-gcs-server:4443
+      PUBSUB_PROJECT_ID: bball-local
+      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+      PUBSUB_TOPIC_DETECTION: video-detection
+      PUBSUB_TOPIC_HIGHLIGHTS: video-highlights
       ROBOFLOW_API_KEY: ${ROBOFLOW_API_KEY:-}
     depends_on:
       - postgres
-      - redis
-      - minio
+      - fake-gcs-server
+      - pubsub-emulator
     volumes:
       - .:/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -70,20 +87,25 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://bball:bball@postgres:5432/bball
       DATABASE_URL_SYNC: postgresql://bball:bball@postgres:5432/bball
-      REDIS_URL: redis://redis:6379/0
-      S3_ENDPOINT_URL: http://minio:9000
-      AWS_ACCESS_KEY_ID: minioadmin
-      AWS_SECRET_ACCESS_KEY: minioadmin
-      S3_BUCKET: bball-videos
+      GCS_BUCKET: bball-videos
+      GCS_PROJECT_ID: bball-local
+      GCS_ENDPOINT_URL: http://fake-gcs-server:4443
+      PUBSUB_PROJECT_ID: bball-local
+      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+      PUBSUB_TOPIC_DETECTION: video-detection
+      PUBSUB_TOPIC_HIGHLIGHTS: video-highlights
+      PUBSUB_SUBSCRIPTION_DETECTION: video-detection-sub
+      PUBSUB_SUBSCRIPTION_HIGHLIGHTS: video-highlights-sub
       ROBOFLOW_API_KEY: ${ROBOFLOW_API_KEY:-}
     depends_on:
       - postgres
-      - redis
-      - minio
+      - fake-gcs-server
+      - pubsub-emulator
+      - setup-pubsub
     volumes:
       - .:/app
-    command: celery -A app.workers.celery_app worker --loglevel=info
+    command: python -m app.workers.subscriber
 
 volumes:
   pgdata:
-  miniodata:
+  gcsdata:

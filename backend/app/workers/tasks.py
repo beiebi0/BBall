@@ -7,12 +7,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import settings
-from app.core.s3 import download_file, upload_file
-from app.workers.celery_app import celery_app
+from app.core.storage import download_file, upload_file
 
 logger = logging.getLogger(__name__)
 
-# Sync engine for Celery tasks (can't use async in sync Celery workers)
+# Sync engine for worker tasks (can't use async in sync workers)
 _engine = create_engine(settings.database_url_sync)
 SyncSession = sessionmaker(bind=_engine)
 
@@ -27,10 +26,9 @@ def _update_job(session: Session, job_id: str, **kwargs):
         session.commit()
 
 
-@celery_app.task(bind=True, name="process_video_detection")
-def process_video_detection(self, job_id: str):
+def process_video_detection(job_id: str):
     """
-    Phase 1: Download video from S3, run YOLO detection/tracking.
+    Phase 1: Download video from GCS, run YOLO detection/tracking.
     Sets job status to 'awaiting_selection' when done.
     """
     from app.models.job import Job
@@ -50,7 +48,7 @@ def process_video_detection(self, job_id: str):
 
         _update_job(session, job_id, status="processing", progress=5, stage="downloading")
 
-        # Download video from S3
+        # Download video from GCS
         work_dir = tempfile.mkdtemp(prefix=f"bball_{job_id}_")
         local_video = os.path.join(work_dir, "source.mp4")
         download_file(video.s3_key, local_video)
@@ -84,12 +82,10 @@ def process_video_detection(self, job_id: str):
         video.resolution = f"{info['width']}x{info['height']}"
         session.commit()
 
-        # Run detection (produces frame data but we don't persist it in this MVP;
-        # the highlight phase will re-run detection — acceptable for MVP,
-        # optimize later by caching frame data)
+        # Run detection
         orchestrator.run_detection(local_video)
 
-        # Extract preview frame and upload to S3
+        # Extract preview frame and upload to GCS
         preview_bytes = orchestrator.extract_preview_frame(local_video)
         if preview_bytes:
             preview_key = f"previews/{job_id}/preview.jpg"
@@ -118,11 +114,10 @@ def process_video_detection(self, job_id: str):
         session.close()
 
 
-@celery_app.task(bind=True, name="process_video_highlights")
-def process_video_highlights(self, job_id: str):
+def process_video_highlights(job_id: str):
     """
     Phase 2: After player selection, detect events, extract clips,
-    compile highlight reels, upload to S3.
+    compile highlight reels, upload to GCS.
     """
     from app.models.highlight import Highlight
     from app.models.job import Job
@@ -175,7 +170,7 @@ def process_video_highlights(self, job_id: str):
             selected_player_id=job.selected_player_track_id,
         )
 
-        # Upload reels to S3 and create highlight records
+        # Upload reels to GCS and create highlight records
         for reel_type, reel_path in result["reel_paths"].items():
             s3_key = f"highlights/{job_id}/{reel_type}.mp4"
             upload_file(reel_path, s3_key)

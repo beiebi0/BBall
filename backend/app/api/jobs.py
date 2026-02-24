@@ -47,10 +47,10 @@ async def create_job(
     await db.commit()
     await db.refresh(job)
 
-    # Enqueue Celery task
-    from app.workers.tasks import process_video_detection
+    # Publish to Pub/Sub
+    from app.core.pubsub import publish_detection_task
 
-    process_video_detection.delay(str(job.id))
+    publish_detection_task(str(job.id))
 
     return _job_response(job)
 
@@ -100,10 +100,10 @@ async def select_player(
     await db.commit()
     await db.refresh(job)
 
-    # Enqueue highlight generation
-    from app.workers.tasks import process_video_highlights
+    # Publish to Pub/Sub
+    from app.core.pubsub import publish_highlights_task
 
-    process_video_highlights.delay(str(job.id))
+    publish_highlights_task(str(job.id))
 
     return _job_response(job)
 

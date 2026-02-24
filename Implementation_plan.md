@@ -22,7 +22,7 @@ With the prototype validating feasibility, development moved to building a produ
 
 Set up the foundational infrastructure:
 
-- **Docker Compose** stack: PostgreSQL 16, Redis 7, MinIO (local S3), API server, Celery worker
+- **Docker Compose** stack: PostgreSQL 16, fake-gcs-server, Pub/Sub emulator, API server, Pub/Sub subscriber worker
 - **FastAPI** application skeleton with config management (`pydantic-settings`, `.env`)
 - **Dockerfile** with Python 3.11, ffmpeg, and OpenCV dependencies
 - **requirements.txt** pinning all dependencies
@@ -36,14 +36,14 @@ Built the data layer and authentication:
 - **JWT auth system**: signup, login, `get_current_user` dependency
 - Password hashing with bcrypt
 
-### Step 3 — S3 Upload Flow
+### Step 3 — GCS Upload Flow
 
 Implemented the video upload pipeline:
 
-- **Presigned URL generation** — app requests upload URL, uploads directly to S3
+- **Signed URL generation** — app requests upload URL, uploads directly to GCS
 - **Upload confirmation** — app confirms upload, video status moves to `uploaded`
 - **Video listing** — user can see their uploaded videos
-- Works with AWS S3 in production and MinIO locally
+- Works with Google Cloud Storage in production and fake-gcs-server locally
 
 ### Step 4 — Detection Pipeline Upgrade
 
@@ -74,14 +74,15 @@ Implemented clip extraction and reel compilation (`pipeline/video/clip_extractor
 - **Concatenation** of clips into a single highlight reel
 - Separate reels: full game highlights + personal (selected player) highlights
 
-### Step 7 — Orchestrator & Celery Integration
+### Step 7 — Orchestrator & Pub/Sub Integration
 
 Wired everything together:
 
 - **Pipeline orchestrator** (`pipeline/orchestrator.py`) — runs the full detection pipeline with stage-based progress (0-100%), including optional rim detection at startup
-- **Two Celery tasks** split at the player selection step:
-  1. `process_video_detection` — downloads video from S3, detects rim position (if Roboflow API key set), runs detection/tracking, extracts preview frame, pauses at `awaiting_selection`
-  2. `process_video_highlights` — after user selects their player, runs event detection (rim-based or fallback), extracts clips, compiles reels, uploads to S3
+- **Two Pub/Sub-driven tasks** split at the player selection step:
+  1. `process_video_detection` — downloads video from GCS, detects rim position (if Roboflow API key set), runs detection/tracking, extracts preview frame, pauses at `awaiting_selection`
+  2. `process_video_highlights` — after user selects their player, runs event detection (rim-based or fallback), extracts clips, compiles reels, uploads to GCS
+- **Pub/Sub subscriber** (`app/workers/subscriber.py`) — pull subscriber that dispatches messages to task functions with ack/nack on success/failure
 - **Progress polling** via `GET /jobs/{id}/progress` with status, percentage, and stage description
 
 ### Step 8 — Remaining API Endpoints
@@ -108,8 +109,19 @@ Resolved several issues that would prevent the Docker stack from starting:
 
 - **`.dockerignore`** — excludes `venv/`, `__pycache__/`, `.env`, and `*.pt` files from the Docker build context (saves 200MB+)
 - **Model path defaults** — `config.py` and `orchestrator.py` defaults changed from `models/yolov8n.pt` / `models/ball_detector_model.pt` to `yolo11m.pt` / `yolo11n-pose.pt` (ultralytics auto-downloads standard models)
-- **`pose_model_path` config** — added to `Settings`, `PipelineOrchestrator`, and both Celery task instantiations so the pose model path is configurable end-to-end
+- **`pose_model_path` config** — added to `Settings`, `PipelineOrchestrator`, and both task instantiations so the pose model path is configurable end-to-end
 - **`ROBOFLOW_API_KEY`** — passed through to `api` and `worker` services in `docker-compose.yml` (defaults to empty string for graceful fallback)
+
+### Step 11 — Migrate from S3 + Celery/Redis to GCS + Pub/Sub
+
+Replaced AWS-centric infrastructure with Google Cloud equivalents:
+
+- **Storage**: Removed `boto3`, added `google-cloud-storage`. New `app/core/storage.py` replaces `app/core/s3.py` with same function signatures (signed upload/download URLs, upload_file, download_file). Supports `fake-gcs-server` for local dev via `GCS_ENDPOINT_URL`.
+- **Task queue**: Removed `celery[redis]` + `redis`, added `google-cloud-pubsub`. New `app/core/pubsub.py` publishes messages to detection/highlights topics. New `app/workers/subscriber.py` is a pull-subscriber that dispatches to task functions with ack/nack.
+- **Worker tasks**: Removed Celery decorators and `celery_app.py`; task functions are now plain Python functions called by the subscriber.
+- **Docker Compose**: Removed `redis`, `minio`, `createbucket` services. Added `fake-gcs-server`, `pubsub-emulator`, `create-gcs-bucket`, `setup-pubsub` init containers.
+- **Config**: Replaced S3/Redis env vars with GCS/Pub/Sub vars in `config.py`, `.env`, and `docker-compose.yml`.
+- **Tests**: Added `test_storage.py`, `test_pubsub.py`, `test_subscriber.py` with mocked GCS/Pub/Sub clients.
 
 ### Phase 1 Result
 
@@ -161,8 +173,8 @@ Improvements to detection accuracy and event coverage once the end-to-end MVP is
 React Native iOS App
     ↕ REST API (JWT auth)
 FastAPI Server (uvicorn)
-    ↕ Celery task queue (Redis broker)
-Celery Worker (GPU)
+    ↕ Pub/Sub messages
+Pub/Sub Subscriber Worker (GPU)
     ├── Roboflow inference (rim detection, optional)
     ├── YOLO11m (player detection)
     ├── YOLO11m (ball detection, COCO class 32)
@@ -170,5 +182,5 @@ Celery Worker (GPU)
     ├── BotSORT (multi-object tracking)
     └── ffmpeg (clip extraction + concatenation)
     ↕
-AWS S3 (videos + highlights)  ·  PostgreSQL (metadata)  ·  Redis (task state)
+Google Cloud Storage (videos + highlights)  ·  PostgreSQL (metadata)  ·  Pub/Sub (task queue)
 ```

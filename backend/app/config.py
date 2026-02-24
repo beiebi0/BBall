@@ -6,15 +6,19 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://bball:bball@localhost:5432/bball"
     database_url_sync: str = "postgresql://bball:bball@localhost:5432/bball"
 
-    # Redis
-    redis_url: str = "redis://localhost:6379/0"
+    # GCS
+    gcs_bucket: str = "bball-videos"
+    gcs_project_id: str = "bball-local"
+    gcs_service_account_json: str = ""
+    gcs_endpoint_url: str = "http://localhost:4443"
 
-    # S3
-    aws_access_key_id: str = "minioadmin"
-    aws_secret_access_key: str = "minioadmin"
-    s3_bucket: str = "bball-videos"
-    s3_region: str = "us-east-1"
-    s3_endpoint_url: str = "http://localhost:9000"
+    # Pub/Sub
+    pubsub_project_id: str = "bball-local"
+    pubsub_emulator_host: str = "localhost:8085"
+    pubsub_topic_detection: str = "video-detection"
+    pubsub_topic_highlights: str = "video-highlights"
+    pubsub_subscription_detection: str = "video-detection-sub"
+    pubsub_subscription_highlights: str = "video-highlights-sub"
 
     # Auth
     jwt_secret: str = "dev-secret-change-in-production"

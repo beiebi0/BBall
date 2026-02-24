@@ -7,7 +7,7 @@ Build an iOS app that generates basketball highlight videos from pickup game rec
 ## Key Decisions
 
 - **Platform**: iOS app (React Native)
-- **Processing**: Cloud backend (Python FastAPI + Celery workers)
+- **Processing**: Cloud backend (Python FastAPI + GCP Pub/Sub workers)
 - **Highlights**: All key plays (scoring, assists, blocks, steals, rebounds, crossovers, fast breaks)
 - **Player ID**: User picks team color + taps to select themselves in a frame
 - **Output**: Single highlight reel per player + full game reel
@@ -45,17 +45,17 @@ Build an iOS app that generates basketball highlight videos from pickup game rec
 ## Processing Pipeline
 
 ```
-Upload on S3 → Download to worker → Stage 1: Setup (0-10%)
+Upload to GCS → Download to worker → Stage 1: Setup (0-10%)
 → Stage 2: Detection & Tracking per-frame (10-60%)
 → Stage 3: Event Detection (60-75%)
 → Stage 4: Clip Extraction via ffmpeg (75-90%)
 → Stage 5: Compile game + player reels (90-98%)
-→ Stage 6: Upload reels to S3, mark done (98-100%)
+→ Stage 6: Upload reels to GCS, mark done (98-100%)
 ```
 
-Two Celery tasks split by the player selection step:
+Two Pub/Sub-driven tasks split by the player selection step:
 1. `process_video_detection` — Downloads video, detects rim position (Roboflow, optional), runs YOLO11 detection/tracking with pose-based ball filtering, extracts preview
-2. `process_video_highlights` — Detects events (using rim proximity if available, upper-quarter fallback otherwise), extracts clips, compiles reels, uploads to S3
+2. `process_video_highlights` — Detects events (using rim proximity if available, upper-quarter fallback otherwise), extracts clips, compiles reels, uploads to GCS
 
 ## Phased Implementation
 
@@ -64,14 +64,14 @@ Two Celery tasks split by the player selection step:
 - Project scaffolding (Docker, FastAPI, requirements)
 - DB models + Alembic migrations
 - JWT auth system (signup/login/me)
-- S3 presigned URL upload flow
+- GCS signed URL upload flow (migrated from S3/MinIO)
 - Prototype upgraded to YOLO11m + YOLO11n-pose (from YOLOv8n + custom ball model)
 - Pose-based ball filtering to eliminate face/head false positives
 - Pipeline modules refactored from possession_tracker.py
 - MVP event detection (possession changes, potential scores, fast breaks)
 - ffmpeg clip extraction + concatenation
 - Pipeline orchestrator
-- Celery integration with progress updates
+- GCP Pub/Sub worker integration with progress updates (migrated from Celery/Redis)
 - All API endpoints (jobs, highlights, player selection)
 
 ### Phase 2: iOS App (Next)
@@ -97,12 +97,12 @@ Two Celery tasks split by the player selection step:
 ## Data Flow
 
 ```
-Phone → POST /videos/upload-url → presigned URL
-Phone → PUT to S3 (direct upload)
+Phone → POST /videos/upload-url → signed URL
+Phone → PUT to GCS (direct upload)
 Phone → POST /videos/confirm → triggers preview extraction
-Phone → POST /jobs → queues Celery task
+Phone → POST /jobs → publishes Pub/Sub message
 Phone → GET /jobs/{id}/progress (poll 3s) → progress updates
-Worker → runs full pipeline → uploads reels to S3
-Phone → GET /highlights → presigned download URLs
+Worker → runs full pipeline → uploads reels to GCS
+Phone → GET /highlights → signed download URLs
 Phone → stream/download highlight reels
 ```
