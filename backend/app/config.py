@@ -8,17 +8,20 @@ class Settings(BaseSettings):
 
     # GCS
     gcs_bucket: str = "bball-videos"
-    gcs_project_id: str = "bball-local"
+    gcs_project_id: str = ""
     gcs_service_account_json: str = ""
-    gcs_endpoint_url: str = "http://localhost:4443"
+    gcs_endpoint_url: str = ""
 
     # Pub/Sub
-    pubsub_project_id: str = "bball-local"
-    pubsub_emulator_host: str = "localhost:8085"
+    pubsub_project_id: str = ""
+    pubsub_emulator_host: str = ""
     pubsub_topic_detection: str = "video-detection"
     pubsub_topic_highlights: str = "video-highlights"
     pubsub_subscription_detection: str = "video-detection-sub"
     pubsub_subscription_highlights: str = "video-highlights-sub"
+
+    # CORS
+    cors_origins: str = "*"
 
     # Auth
     jwt_secret: str = "dev-secret-change-in-production"

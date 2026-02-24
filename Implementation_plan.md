@@ -123,6 +123,16 @@ Replaced AWS-centric infrastructure with Google Cloud equivalents:
 - **Config**: Replaced S3/Redis env vars with GCS/Pub/Sub vars in `config.py`, `.env`, and `docker-compose.yml`.
 - **Tests**: Added `test_storage.py`, `test_pubsub.py`, `test_subscriber.py` with mocked GCS/Pub/Sub clients.
 
+### Step 12 — GCP Deployment
+
+Created deployment infrastructure for running the backend on GCP Cloud Run with managed services:
+
+- **`deploy.sh`** — Full gcloud CLI script that provisions all GCP resources: Artifact Registry, Cloud SQL (PostgreSQL 16), GCS bucket, Pub/Sub topics/subscriptions, Secret Manager secrets, service account with IAM roles, and two Cloud Run services (API + Worker). Runs Alembic migrations via a Cloud Run Job.
+- **Config defaults** — Changed `gcs_endpoint_url`, `pubsub_emulator_host`, `gcs_project_id`, `pubsub_project_id` defaults to empty strings so production uses real GCP services via Application Default Credentials. Docker Compose still sets these explicitly for local dev.
+- **CORS** — Made CORS origins configurable via `cors_origins` setting (comma-separated, defaults to `"*"` for dev).
+- **Alembic env override** — `env.py` now reads `DATABASE_URL_SYNC` from environment to override `alembic.ini` URL, enabling Cloud SQL migrations without editing config files.
+- **Same image, two services** — API uses default Dockerfile CMD (`uvicorn`); Worker overrides via Cloud Run `--command` flag. Worker runs with `--no-cpu-throttling` and `min-instances=1` since the pull subscriber must be always-on.
+
 ### Phase 1 Result
 
 A fully functional backend ready to be consumed by a mobile client. The complete commit history:

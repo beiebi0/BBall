@@ -26,6 +26,11 @@
 - [x] Fix Docker Compose stack for first run (`.dockerignore`, model path defaults, `ROBOFLOW_API_KEY` env, `pose_model_path` wiring)
 - [x] Migrate from AWS S3 + Celery/Redis to GCS + Pub/Sub (storage, task queue, Docker Compose, tests, docs)
 
+- [x] GCP deployment script (`deploy.sh`) — Cloud Run (API + Worker), Cloud SQL, GCS, Pub/Sub, Secret Manager, Artifact Registry
+- [x] Production-ready config defaults (empty strings for emulator/endpoint vars so prod uses real GCP services)
+- [x] Configurable CORS origins via `cors_origins` setting
+- [x] Alembic env var override for Cloud SQL migrations (`DATABASE_URL_SYNC`)
+
 ## Next Steps
 
 ### Test the Backend (Priority)

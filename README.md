@@ -85,6 +85,25 @@ alembic upgrade head
 curl http://localhost:8000/health
 ```
 
+### Deploy to GCP
+
+Deploy the backend to Cloud Run with managed Cloud SQL, GCS, and Pub/Sub:
+
+```bash
+cd backend
+export GCP_PROJECT_ID="your-project-id"
+export DB_PASSWORD="$(openssl rand -base64 24)"
+export JWT_SECRET="$(openssl rand -base64 32)"
+export ROBOFLOW_API_KEY=""  # optional
+./deploy.sh
+```
+
+This creates all GCP resources (Cloud SQL, GCS bucket, Pub/Sub topics, secrets) and deploys two Cloud Run services:
+- **bball-api** — FastAPI server (1 vCPU, 512 MB, scales to 0)
+- **bball-worker** — Pub/Sub subscriber for ML processing (2 vCPU, 4 GB, always-on)
+
+See `backend/deploy.sh` for details.
+
 ## API Flow
 
 1. `POST /auth/signup` — Create account, get JWT
@@ -103,7 +122,7 @@ Upload → Download to Worker → Rim Detection (Roboflow, sampled frames)
 → Detection & Tracking (YOLO11m + BotSORT)
 → Pose-based Ball Filtering (YOLO11n-pose, discard face false positives)
 → Event Detection (possession changes, potential scores, fast breaks)
-→ Clip Extraction (ffmpeg) → Compile Reels → Upload to S3
+→ Clip Extraction (ffmpeg) → Compile Reels → Upload to GCS
 ```
 
 ### Detection Details
