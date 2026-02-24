@@ -33,6 +33,7 @@ IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/bball-repo/bball:latest"
 SQL_INSTANCE="bball-db"
 SQL_CONNECTION="${PROJECT_ID}:${REGION}:${SQL_INSTANCE}"
 GCS_BUCKET="bball-videos-${PROJECT_ID}"
+SA_KEY_FILE="/tmp/bball-sa-key.json"
 
 # Get current authenticated user for IAM binding
 DEPLOYER_EMAIL=$(gcloud config get account 2>/dev/null)
@@ -115,6 +116,28 @@ gcloud iam service-accounts add-iam-policy-binding "${SA_EMAIL}" \
   > /dev/null
 echo "    Deployer granted serviceAccountUser on ${SA_EMAIL}."
 
+# Create SA key and store in Secret Manager (needed for GCS signed URLs)
+echo "    Creating service account key for GCS signing..."
+gcloud iam service-accounts keys create "${SA_KEY_FILE}" \
+  --iam-account="${SA_EMAIL}" \
+  --project="${PROJECT_ID}" \
+  --quiet 2>/dev/null || echo "    (using existing key file)"
+
+if ! gcloud secrets describe gcs-sa-key --project="${PROJECT_ID}" &>/dev/null; then
+  gcloud secrets create gcs-sa-key \
+    --data-file="${SA_KEY_FILE}" \
+    --project="${PROJECT_ID}" \
+    --quiet
+  echo "    Created secret: gcs-sa-key"
+else
+  gcloud secrets versions add gcs-sa-key \
+    --data-file="${SA_KEY_FILE}" \
+    --project="${PROJECT_ID}" \
+    --quiet
+  echo "    Updated secret: gcs-sa-key"
+fi
+rm -f "${SA_KEY_FILE}"
+
 # ── Step 5: Cloud SQL ──────────────────────────────────────────────────────
 echo ">>> Step 5: Creating Cloud SQL instance..."
 if gcloud sql instances describe "${SQL_INSTANCE}" --project="${PROJECT_ID}" &>/dev/null; then
@@ -122,10 +145,9 @@ if gcloud sql instances describe "${SQL_INSTANCE}" --project="${PROJECT_ID}" &>/
 else
   gcloud sql instances create "${SQL_INSTANCE}" \
     --database-version=POSTGRES_16 \
-    --tier=db-custom-1-3840 \
+    --tier=db-f1-micro \
+    --edition=ENTERPRISE \
     --region="${REGION}" \
-    --no-assign-ip \
-    --enable-google-private-path \
     --quiet
   echo "    Cloud SQL instance created."
 fi
@@ -134,9 +156,19 @@ echo "    Creating database and user..."
 gcloud sql databases create bball --instance="${SQL_INSTANCE}" --quiet \
   2>/dev/null || echo "    (database already exists)"
 gcloud sql users create bball --instance="${SQL_INSTANCE}" --password="${DB_PASSWORD}" --quiet \
-  2>/dev/null || echo "    (user already exists, updating password...)" && \
-  gcloud sql users set-password bball --instance="${SQL_INSTANCE}" --password="${DB_PASSWORD}" --quiet \
   2>/dev/null || true
+gcloud sql users set-password bball --instance="${SQL_INSTANCE}" --password="${DB_PASSWORD}" --quiet \
+  2>/dev/null || true
+
+# Authorize all IPs (password-protected; lock down with VPC for production)
+gcloud sql instances patch "${SQL_INSTANCE}" \
+  --authorized-networks=0.0.0.0/0 \
+  --project="${PROJECT_ID}" \
+  --quiet 2>/dev/null || true
+
+# Get the public IP for connection strings
+SQL_IP=$(gcloud sql instances describe "${SQL_INSTANCE}" --project="${PROJECT_ID}" --format="value(ipAddresses[0].ipAddress)")
+echo "    Cloud SQL IP: ${SQL_IP}"
 
 # ── Step 6: GCS bucket ────────────────────────────────────────────────────
 echo ">>> Step 6: Creating GCS bucket..."
@@ -187,10 +219,10 @@ if [ -n "${ROBOFLOW_API_KEY}" ]; then
 fi
 
 # ── Common env vars for Cloud Run services ─────────────────────────────────
-DB_URL_ASYNC="postgresql+asyncpg://bball:${DB_PASSWORD}@/bball?host=/cloudsql/${SQL_CONNECTION}"
-DB_URL_SYNC="postgresql://bball:${DB_PASSWORD}@/bball?host=/cloudsql/${SQL_CONNECTION}"
+DB_URL_ASYNC="postgresql+asyncpg://bball:${DB_PASSWORD}@${SQL_IP}/bball?ssl=disable"
+DB_URL_SYNC="postgresql://bball:${DB_PASSWORD}@${SQL_IP}/bball"
 
-SECRETS_FLAG="JWT_SECRET=jwt-secret:latest"
+SECRETS_FLAG="JWT_SECRET=jwt-secret:latest,GCS_SERVICE_ACCOUNT_JSON=gcs-sa-key:latest"
 if [ -n "${ROBOFLOW_API_KEY}" ]; then
   SECRETS_FLAG="${SECRETS_FLAG},ROBOFLOW_API_KEY=roboflow-api-key:latest"
 fi
