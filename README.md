@@ -102,11 +102,25 @@ export ROBOFLOW_API_KEY=""  # optional
 ./deploy.sh
 ```
 
-This creates all GCP resources (Cloud SQL, GCS bucket, Pub/Sub topics, secrets) and deploys two Cloud Run services:
+This creates all GCP resources (Cloud SQL, GCS bucket, Pub/Sub topics, secrets, SA key for GCS signing) and deploys two Cloud Run services:
 - **bball-api** — FastAPI server (1 vCPU, 512 MB, scales to 0)
-- **bball-worker** — Pub/Sub subscriber for ML processing (2 vCPU, 4 GB, always-on)
+- **bball-worker** — Pub/Sub subscriber for ML processing (2 vCPU, 4 GB, always-on with HTTP health server)
+
+The script also stores a service account key in Secret Manager (`gcs-sa-key`) for GCS signed URL generation, since Cloud Run's default credentials lack a private key for signing.
 
 See `backend/deploy.sh` for details.
+
+### Run Integration Tests
+
+After deploying (or starting Docker Compose), verify the API:
+
+```bash
+cd backend
+pip install requests pytest
+API_BASE_URL=https://bball-api-XXXX.run.app python -m pytest tests/test_api_integration.py -v
+```
+
+12 tests covering health, auth, video upload URLs, jobs, and highlights.
 
 ## API Flow
 
