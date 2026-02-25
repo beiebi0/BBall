@@ -52,7 +52,7 @@ def process_video_detection(job_id: str):
         # Download video from GCS
         work_dir = tempfile.mkdtemp(prefix=f"bball_{job_id}_")
         local_video = os.path.join(work_dir, "source.mp4")
-        download_file(video.s3_key, local_video)
+        download_file(video.gcs_key, local_video)
 
         _update_job(session, job_id, progress=10, stage="detecting")
 
@@ -173,7 +173,7 @@ def process_video_highlights(job_id: str):
         # Download video
         work_dir = tempfile.mkdtemp(prefix=f"bball_{job_id}_hl_")
         local_video = os.path.join(work_dir, "source.mp4")
-        download_file(video.s3_key, local_video)
+        download_file(video.gcs_key, local_video)
         output_dir = os.path.join(work_dir, "output")
 
         def progress_cb(pct: int, msg: str):
@@ -222,8 +222,8 @@ def process_video_highlights(job_id: str):
 
         # Upload reels to GCS and create highlight records
         for reel_type, reel_path in result["reel_paths"].items():
-            s3_key = f"highlights/{job_id}/{reel_type}.mp4"
-            upload_file(reel_path, s3_key)
+            gcs_key = f"highlights/{job_id}/{reel_type}.mp4"
+            upload_file(reel_path, gcs_key)
 
             file_size = os.path.getsize(reel_path)
             hl_type = "game" if reel_type == "game_reel" else "player"
@@ -232,7 +232,7 @@ def process_video_highlights(job_id: str):
                 job_id=uuid.UUID(job_id),
                 highlight_type=hl_type,
                 player_track_id=job.selected_player_track_id if hl_type == "player" else None,
-                s3_key=s3_key,
+                gcs_key=gcs_key,
                 file_size_bytes=file_size,
             )
             session.add(highlight)

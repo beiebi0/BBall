@@ -18,7 +18,7 @@ class Video(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    s3_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    gcs_key: Mapped[str] = mapped_column(String(512), nullable=False)
     filename: Mapped[str | None] = mapped_column(String(255))
     duration_secs: Mapped[float | None] = mapped_column(Float)
     resolution: Mapped[str | None] = mapped_column(String(20))

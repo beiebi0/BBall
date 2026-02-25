@@ -9,7 +9,7 @@ class UploadURLRequest(BaseModel):
 class UploadURLResponse(BaseModel):
     video_id: str
     upload_url: str
-    s3_key: str
+    gcs_key: str
 
 
 class VideoResponse(BaseModel):

@@ -15,16 +15,16 @@ def _reset_client():
 
 
 @patch("app.core.storage.get_gcs_client")
-def test_generate_presigned_upload_url(mock_get_client):
+def test_generate_signed_upload_url(mock_get_client):
     mock_blob = MagicMock()
     mock_blob.generate_signed_url.return_value = "https://storage.example.com/upload?sig=abc"
     mock_bucket = MagicMock()
     mock_bucket.blob.return_value = mock_blob
     mock_get_client.return_value.bucket.return_value = mock_bucket
 
-    from app.core.storage import generate_presigned_upload_url
+    from app.core.storage import generate_signed_upload_url
 
-    url = generate_presigned_upload_url("uploads/test.mp4", "video/mp4", 3600)
+    url = generate_signed_upload_url("uploads/test.mp4", "video/mp4", 3600)
 
     assert url == "https://storage.example.com/upload?sig=abc"
     mock_bucket.blob.assert_called_once_with("uploads/test.mp4")
@@ -35,16 +35,16 @@ def test_generate_presigned_upload_url(mock_get_client):
 
 
 @patch("app.core.storage.get_gcs_client")
-def test_generate_presigned_download_url(mock_get_client):
+def test_generate_signed_download_url(mock_get_client):
     mock_blob = MagicMock()
     mock_blob.generate_signed_url.return_value = "https://storage.example.com/download?sig=xyz"
     mock_bucket = MagicMock()
     mock_bucket.blob.return_value = mock_blob
     mock_get_client.return_value.bucket.return_value = mock_bucket
 
-    from app.core.storage import generate_presigned_download_url
+    from app.core.storage import generate_signed_download_url
 
-    url = generate_presigned_download_url("highlights/test.mp4", 7200)
+    url = generate_signed_download_url("highlights/test.mp4", 7200)
 
     assert url == "https://storage.example.com/download?sig=xyz"
     call_kwargs = mock_blob.generate_signed_url.call_args[1]

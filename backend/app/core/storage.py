@@ -35,10 +35,10 @@ def _get_bucket():
     return get_gcs_client().bucket(settings.gcs_bucket)
 
 
-def generate_presigned_upload_url(
-    s3_key: str, content_type: str = "video/mp4", expires_in: int = 3600
+def generate_signed_upload_url(
+    gcs_key: str, content_type: str = "video/mp4", expires_in: int = 3600
 ) -> str:
-    blob = _get_bucket().blob(s3_key)
+    blob = _get_bucket().blob(gcs_key)
     url = blob.generate_signed_url(
         version="v4",
         expiration=datetime.timedelta(seconds=expires_in),
@@ -48,8 +48,8 @@ def generate_presigned_upload_url(
     return url
 
 
-def generate_presigned_download_url(s3_key: str, expires_in: int = 3600) -> str:
-    blob = _get_bucket().blob(s3_key)
+def generate_signed_download_url(gcs_key: str, expires_in: int = 3600) -> str:
+    blob = _get_bucket().blob(gcs_key)
     url = blob.generate_signed_url(
         version="v4",
         expiration=datetime.timedelta(seconds=expires_in),
@@ -58,19 +58,19 @@ def generate_presigned_download_url(s3_key: str, expires_in: int = 3600) -> str:
     return url
 
 
-def upload_file(local_path: str, s3_key: str) -> None:
-    blob = _get_bucket().blob(s3_key)
+def upload_file(local_path: str, gcs_key: str) -> None:
+    blob = _get_bucket().blob(gcs_key)
     blob.upload_from_filename(local_path)
 
 
-def download_blob_bytes(s3_key: str) -> bytes | None:
+def download_blob_bytes(gcs_key: str) -> bytes | None:
     """Download a small file from GCS and return its bytes, or None if not found."""
-    blob = _get_bucket().blob(s3_key)
+    blob = _get_bucket().blob(gcs_key)
     if not blob.exists():
         return None
     return blob.download_as_bytes()
 
 
-def download_file(s3_key: str, local_path: str) -> None:
-    blob = _get_bucket().blob(s3_key)
+def download_file(gcs_key: str, local_path: str) -> None:
+    blob = _get_bucket().blob(gcs_key)
     blob.download_to_filename(local_path)

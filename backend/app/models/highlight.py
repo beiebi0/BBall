@@ -20,7 +20,7 @@ class Highlight(Base):
     )
     highlight_type: Mapped[str] = mapped_column(String(20), nullable=False)
     player_track_id: Mapped[int | None] = mapped_column(Integer)
-    s3_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    gcs_key: Mapped[str] = mapped_column(String(512), nullable=False)
     duration_secs: Mapped[float | None] = mapped_column(Float)
     file_size_bytes: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(

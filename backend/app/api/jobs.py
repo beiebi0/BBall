@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.core.storage import download_blob_bytes, generate_presigned_download_url
+from app.core.storage import download_blob_bytes, generate_signed_download_url
 from app.models.job import Job
 from app.models.user import User
 from app.models.video import Video
@@ -97,7 +97,7 @@ async def get_job_preview(
         )
 
     preview_key = f"previews/{job_id}/preview.jpg"
-    preview_url = await asyncio.to_thread(generate_presigned_download_url, preview_key)
+    preview_url = await asyncio.to_thread(generate_signed_download_url, preview_key)
 
     players_key = f"previews/{job_id}/players.json"
     players_bytes = await asyncio.to_thread(download_blob_bytes, players_key)

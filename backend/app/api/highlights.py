@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.storage import generate_presigned_download_url
+from app.core.storage import generate_signed_download_url
 from app.core.security import get_current_user
 from app.models.highlight import Highlight
 from app.models.job import Job
@@ -39,7 +39,7 @@ async def list_highlights(
             player_track_id=h.player_track_id,
             duration_secs=h.duration_secs,
             file_size_bytes=h.file_size_bytes,
-            download_url=generate_presigned_download_url(h.s3_key),
+            download_url=generate_signed_download_url(h.gcs_key),
             created_at=str(h.created_at),
         )
         for h in highlights
@@ -69,7 +69,7 @@ async def get_highlight(
         player_track_id=h.player_track_id,
         duration_secs=h.duration_secs,
         file_size_bytes=h.file_size_bytes,
-        download_url=generate_presigned_download_url(h.s3_key),
+        download_url=generate_signed_download_url(h.gcs_key),
         created_at=str(h.created_at),
     )
 
@@ -90,5 +90,5 @@ async def download_highlight(
         raise HTTPException(status_code=404, detail="Highlight not found")
 
     h = row[0]
-    url = generate_presigned_download_url(h.s3_key, expires_in=7200)
+    url = generate_signed_download_url(h.gcs_key, expires_in=7200)
     return {"download_url": url}
