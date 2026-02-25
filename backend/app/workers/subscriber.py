@@ -121,6 +121,18 @@ def main() -> None:
             futures.append(future_hl)
 
             logger.info("Worker listening for messages.")
+
+            # Monitor futures — if a subscription fails, log the error and shut down
+            def _watch_future(name, future):
+                try:
+                    future.result()
+                except Exception:
+                    logger.exception("Streaming pull for %s failed", name)
+                    shutdown_event.set()
+
+            threading.Thread(target=_watch_future, args=("detection", future_det), daemon=True).start()
+            threading.Thread(target=_watch_future, args=("highlights", future_hl), daemon=True).start()
+
         except Exception:
             logger.exception("Failed to start Pub/Sub subscriber")
             shutdown_event.set()

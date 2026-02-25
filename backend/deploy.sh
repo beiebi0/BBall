@@ -229,20 +229,24 @@ fi
 
 # ── Step 9: Deploy API service ─────────────────────────────────────────────
 echo ">>> Step 9: Deploying Cloud Run API service..."
+# Use ^::^ delimiter to avoid comma-parsing issues with special chars in DB password
+API_ENV="^::^"
+API_ENV+="DATABASE_URL=${DB_URL_ASYNC}"
+API_ENV+="::DATABASE_URL_SYNC=${DB_URL_SYNC}"
+API_ENV+="::GCS_BUCKET=${GCS_BUCKET}"
+API_ENV+="::GCS_PROJECT_ID=${PROJECT_ID}"
+API_ENV+="::GCS_ENDPOINT_URL="
+API_ENV+="::PUBSUB_PROJECT_ID=${PROJECT_ID}"
+API_ENV+="::PUBSUB_EMULATOR_HOST="
+API_ENV+="::PUBSUB_TOPIC_DETECTION=video-detection"
+API_ENV+="::PUBSUB_TOPIC_HIGHLIGHTS=video-highlights"
+
 gcloud run deploy bball-api \
   --image="${IMAGE}" \
   --region="${REGION}" \
   --service-account="${SA_EMAIL}" \
   --add-cloudsql-instances="${SQL_CONNECTION}" \
-  --set-env-vars="DATABASE_URL=${DB_URL_ASYNC}" \
-  --set-env-vars="DATABASE_URL_SYNC=${DB_URL_SYNC}" \
-  --set-env-vars="GCS_BUCKET=${GCS_BUCKET}" \
-  --set-env-vars="GCS_PROJECT_ID=${PROJECT_ID}" \
-  --set-env-vars="GCS_ENDPOINT_URL=" \
-  --set-env-vars="PUBSUB_PROJECT_ID=${PROJECT_ID}" \
-  --set-env-vars="PUBSUB_EMULATOR_HOST=" \
-  --set-env-vars="PUBSUB_TOPIC_DETECTION=video-detection" \
-  --set-env-vars="PUBSUB_TOPIC_HIGHLIGHTS=video-highlights" \
+  --set-env-vars="${API_ENV}" \
   --set-secrets="${SECRETS_FLAG}" \
   --port=8000 \
   --memory=512Mi \
@@ -256,23 +260,26 @@ echo "    API service deployed."
 
 # ── Step 10: Deploy Worker service ─────────────────────────────────────────
 echo ">>> Step 10: Deploying Cloud Run Worker service..."
+WORKER_ENV="^::^"
+WORKER_ENV+="DATABASE_URL=${DB_URL_ASYNC}"
+WORKER_ENV+="::DATABASE_URL_SYNC=${DB_URL_SYNC}"
+WORKER_ENV+="::GCS_BUCKET=${GCS_BUCKET}"
+WORKER_ENV+="::GCS_PROJECT_ID=${PROJECT_ID}"
+WORKER_ENV+="::GCS_ENDPOINT_URL="
+WORKER_ENV+="::PUBSUB_PROJECT_ID=${PROJECT_ID}"
+WORKER_ENV+="::PUBSUB_EMULATOR_HOST="
+WORKER_ENV+="::PUBSUB_TOPIC_DETECTION=video-detection"
+WORKER_ENV+="::PUBSUB_TOPIC_HIGHLIGHTS=video-highlights"
+WORKER_ENV+="::PUBSUB_SUBSCRIPTION_DETECTION=video-detection-sub"
+WORKER_ENV+="::PUBSUB_SUBSCRIPTION_HIGHLIGHTS=video-highlights-sub"
+
 gcloud run deploy bball-worker \
   --image="${IMAGE}" \
   --region="${REGION}" \
   --service-account="${SA_EMAIL}" \
   --add-cloudsql-instances="${SQL_CONNECTION}" \
   --command="python","-m","app.workers.subscriber" \
-  --set-env-vars="DATABASE_URL=${DB_URL_ASYNC}" \
-  --set-env-vars="DATABASE_URL_SYNC=${DB_URL_SYNC}" \
-  --set-env-vars="GCS_BUCKET=${GCS_BUCKET}" \
-  --set-env-vars="GCS_PROJECT_ID=${PROJECT_ID}" \
-  --set-env-vars="GCS_ENDPOINT_URL=" \
-  --set-env-vars="PUBSUB_PROJECT_ID=${PROJECT_ID}" \
-  --set-env-vars="PUBSUB_EMULATOR_HOST=" \
-  --set-env-vars="PUBSUB_TOPIC_DETECTION=video-detection" \
-  --set-env-vars="PUBSUB_TOPIC_HIGHLIGHTS=video-highlights" \
-  --set-env-vars="PUBSUB_SUBSCRIPTION_DETECTION=video-detection-sub" \
-  --set-env-vars="PUBSUB_SUBSCRIPTION_HIGHLIGHTS=video-highlights-sub" \
+  --set-env-vars="${WORKER_ENV}" \
   --set-secrets="${SECRETS_FLAG}" \
   --port=8080 \
   --memory=4Gi \
