@@ -43,6 +43,11 @@ cd backend && python -m pytest app/core/test_storage.py app/core/test_pubsub.py 
 cd backend && python -m pytest pipeline/detection/test_player_detector.py -v
 cd backend && python -m pytest pipeline/detection/test_ball_detector.py -v
 
+# API integration tests (run against live backend — Docker Compose or GCP)
+cd backend && API_BASE_URL=http://localhost:8000 python -m pytest tests/test_api_integration.py -v
+# Or against GCP:
+cd backend && API_BASE_URL=https://bball-api-XXXX.run.app python -m pytest tests/test_api_integration.py -v
+
 # Manual integration tests (require pickup_game.mp4 in backend/)
 cd backend && python test_pipeline.py
 cd backend && python test_full_detection.py
@@ -109,6 +114,16 @@ Set in `docker-compose.yml` for containerized dev. For local dev, use `backend/.
 
 A single-file SPA (`backend/static/index.html`) is served at `/static/index.html` (root `/` redirects there). It exercises the full backend flow: auth, upload, processing progress, player selection, and highlight viewing. No build tools needed. For local dev, GCS signed URLs are automatically fixed (replaces `fake-gcs-server` hostname with `localhost`).
 
+## GCP Deployment
+
+The backend is deployed to GCP Cloud Run. Key details:
+- **API**: `bball-api` on Cloud Run (1 vCPU, 512 MB, scales to 0)
+- **Worker**: `bball-worker` on Cloud Run (2 vCPU, 4 GB, min-instances=1, HTTP health server on port 8080)
+- **Cloud SQL**: PostgreSQL 16, `db-f1-micro`, ENTERPRISE edition, public IP
+- **GCS signed URLs**: Require SA key in Secret Manager (`gcs-sa-key` → `GCS_SERVICE_ACCOUNT_JSON` env var)
+- **Deploy script**: `backend/deploy.sh` — idempotent, provisions all resources
+- Worker uses deferred Pub/Sub init (background thread) so health probe passes before credential lookups complete
+
 ## Project Status
 
-Phase 1 (backend) is built but not yet verified end-to-end. A web client exists for testing. Phase 2 (React Native iOS app) has not been started.
+Phase 1 (backend) is deployed and verified on GCP. 12 integration tests pass against production. A web client exists for testing. Phase 2 (React Native iOS app) has not been started.

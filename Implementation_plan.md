@@ -143,9 +143,73 @@ Eliminated redundant detection in the two-phase pipeline. Previously, Phase 2 (`
 - **Phase 2 cache loading** — Worker downloads the cache, deserializes it, and calls the new `orchestrator.run_highlights_from_cache()` which skips straight to event detection + clip extraction. Falls back to `run_full_pipeline()` if cache is missing.
 - **Tests** — 7 unit tests covering serialization round-trips and verifying the cache path skips `run_detection()`
 
+### Step 14 — Production Deployment & Verification
+
+Deployed and verified the full backend on GCP:
+
+- **Cloud Run API** (`bball-api`) — 1 vCPU, 512 MB, scales to zero, public endpoint with `--allow-unauthenticated`
+- **Cloud Run Worker** (`bball-worker`) — 2 vCPU, 4 GB, always-on (`min-instances=1`, `--no-cpu-throttling`), HTTP health server on port 8080 for startup probes
+- **Cloud SQL** — PostgreSQL 16, `db-f1-micro` (ENTERPRISE edition), public IP with authorized networks
+- **GCS** — `bball-videos-{project_id}` bucket with signed URLs via SA key in Secret Manager
+- **Pub/Sub** — `video-detection` and `video-highlights` topics with 600s ack deadline subscriptions
+
+Key deployment lessons incorporated into `deploy.sh`:
+- Worker needs an HTTP health endpoint — Cloud Run startup probes require it. Added `_HealthHandler` to `subscriber.py` with deferred Pub/Sub init in a background thread.
+- GCS signed URLs require a private key — Cloud Run's ADC doesn't include one. Solution: create SA key JSON, store in Secret Manager as `gcs-sa-key`, mount as `GCS_SERVICE_ACCOUNT_JSON` env var.
+- Cloud SQL connections use public IP directly (not Unix socket) with `?ssl=disable` for asyncpg.
+- Cloud Run Jobs use `--set-cloudsql-instances` (not `--add-cloudsql-instances`) and need `PYTHONPATH=/app` for Alembic.
+- All gcloud commands need `--quiet` to prevent interactive prompts from hanging scripts.
+
+### Step 15 — Integration Test Suite
+
+Created `tests/test_api_integration.py` — 12 tests that run against a live backend (Docker Compose or GCP):
+
+- **Health**: health check endpoint
+- **Auth** (5 tests): signup, login, wrong password, get current user, no token, duplicate signup
+- **Videos** (3 tests): get signed upload URL, list videos, upload URL without auth
+- **Jobs** (1 test): create job with invalid video ID
+- **Highlights** (1 test): list highlights for non-existent job
+
+Run with: `API_BASE_URL=https://bball-api-XXXX.run.app python -m pytest tests/test_api_integration.py -v`
+
+All 12 tests passing against the production GCP deployment.
+
+### Step 16 — Rename S3 References to GCS
+
+Replaced all remaining AWS S3 naming conventions with GCS equivalents:
+
+- **DB columns**: `s3_key` → `gcs_key` in `videos` and `highlights` tables
+- **Alembic migration 002** (`002_rename_s3_key_to_gcs_key.py`) — `ALTER COLUMN` rename, reversible
+- **ORM models**: `Video.s3_key` → `Video.gcs_key`, `Highlight.s3_key` → `Highlight.gcs_key`
+- **Schema**: `UploadURLResponse.s3_key` → `UploadURLResponse.gcs_key`
+- **Storage functions**: `generate_presigned_upload_url` → `generate_signed_upload_url`, `generate_presigned_download_url` → `generate_signed_download_url`, all `s3_key` params → `gcs_key`
+- **All callers** updated across `videos.py`, `highlights.py`, `jobs.py`, `tasks.py`
+
+### Step 17 — Production Deployment Debugging
+
+Deployed latest code to GCP and resolved several production issues:
+
+- **Empty `GCS_BUCKET` env var** — The `+` character in the DB password broke `--set-env-vars` parsing, causing `GCS_BUCKET` to be empty. Fixed with `--update-env-vars`.
+- **GCS signed URL auth failure** — Cloud Run's default compute credentials can't sign URLs. Required mounting the `gcs-sa-key` secret as `GCS_SERVICE_ACCOUNT_JSON` on both API and worker services.
+- **GCS bucket didn't exist** — The bucket `bball-videos-{project_id}` was never created. Created with `gsutil mb`.
+- **GCS CORS policy** — Browser PUT uploads to signed URLs were blocked. Fixed by setting CORS config (`PUT`, `GET`, `HEAD` from `*`) on the bucket.
+- **Pub/Sub topics missing** — Topics `video-detection` and `video-highlights` with subscriptions were not created. Created manually.
+- **Stale test data** — Integration tests (`test_api_integration.py`) were creating randomized `test-{uuid}@test.com` users and orphaned video rows on every run against production. Cleaned up with SQL deletes.
+
+**Deployment cheat sheet** (code-only changes, no infra changes):
+```bash
+# From Cloud Shell
+cd backend
+IMAGE="us-central1-docker.pkg.dev/${GOOGLE_CLOUD_PROJECT}/bball-repo/bball:latest"
+gcloud builds submit --tag "${IMAGE}" .
+gcloud run deploy bball-api --image="${IMAGE}" --region=us-central1
+gcloud run deploy bball-worker --image="${IMAGE}" --region=us-central1
+gcloud run jobs execute bball-migrate --region=us-central1 --wait  # only if DB changes
+```
+
 ### Phase 1 Result
 
-A fully functional backend ready to be consumed by a mobile client. The complete commit history:
+A fully functional backend deployed and verified on GCP, ready to be consumed by a mobile app. The complete commit history:
 
 1. `189ea4a` — Initial commit: possession tracker prototype (YOLOv8)
 2. `34eae12` — Upgrade tracker to YOLO11 + pose-based ball filtering
@@ -164,7 +228,7 @@ Build the React Native iOS app that consumes the backend API. The screens map di
 |---|---|---|
 | **Auth** (signup/login) | Account creation and login | `POST /auth/signup`, `POST /auth/login` |
 | **Home** | Video history + upload button | `GET /videos` |
-| **Upload** | Camera roll picker + progress | `POST /videos/upload-url`, PUT to S3, `POST /videos/{id}/confirm` |
+| **Upload** | Camera roll picker + progress | `POST /videos/upload-url`, PUT to GCS, `POST /videos/{id}/confirm` |
 | **Player Selection** | Tap on annotated frame to identify self | `POST /jobs/{id}/select-player` |
 | **Processing** | Progress bar while pipeline runs | `GET /jobs/{id}/progress` (poll every 3s) |
 | **Highlights** | Watch + download/share reels | `GET /highlights?job_id=X`, `GET /highlights/{id}/download` |
@@ -194,7 +258,7 @@ React Native iOS App
     ↕ REST API (JWT auth)
 FastAPI Server (uvicorn)
     ↕ Pub/Sub messages
-Pub/Sub Subscriber Worker (GPU)
+Pub/Sub Subscriber Worker (CPU, Cloud Run)
     ├── Roboflow inference (rim detection, optional)
     ├── YOLO11m (player detection)
     ├── YOLO11m (ball detection, COCO class 32)

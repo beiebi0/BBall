@@ -30,6 +30,10 @@
 - [x] Production-ready config defaults (empty strings for emulator/endpoint vars so prod uses real GCP services)
 - [x] Configurable CORS origins via `cors_origins` setting
 - [x] Alembic env var override for Cloud SQL migrations (`DATABASE_URL_SYNC`)
+- [x] Deploy backend to GCP — API + Worker on Cloud Run, Cloud SQL, GCS, Pub/Sub all verified working
+- [x] Worker health server for Cloud Run startup probe (HTTP endpoint on port 8080, deferred Pub/Sub init)
+- [x] GCS signed URLs via SA key in Secret Manager (`gcs-sa-key` secret, `GCS_SERVICE_ACCOUNT_JSON` env var)
+- [x] API integration test suite (`tests/test_api_integration.py` — 12 tests, all passing against GCP)
 
 - [x] Web client (`backend/static/index.html`) — single-file SPA for auth, upload, processing, player selection, and highlight viewing
 - [x] Annotated preview endpoint (`GET /jobs/{id}/preview`) — returns preview image URL + player list from detection
@@ -37,29 +41,32 @@
 - [x] Worker produces `players.json` alongside annotated preview during detection phase
 - [x] Static file serving in FastAPI (`/static`, root redirect to `/static/index.html`)
 - [x] Detection cache between pipeline phases — Phase 1 serializes `FrameData` + rim position to GCS; Phase 2 loads cache and skips re-detection (eliminates ~50% redundant YOLO inference)
+- [x] Rename all S3 references to GCS (`s3_key` → `gcs_key`, `presigned` → `signed`) + Alembic migration 002
+- [x] Install local venv dependencies (`pydantic-settings`, `google-cloud-storage`, `google-cloud-pubsub`) so unit tests run locally
+- [x] GCS bucket CORS configuration for browser-based signed URL uploads
+- [x] Pub/Sub topics and subscriptions created in production
 
 ## Next Steps
 
-### Test the Backend (Priority)
+### Production E2E Testing (In Progress)
 
-The entire Phase 1 backend has been built but **never run or tested**. Before moving to the iOS app, verify everything actually works end-to-end.
+Backend is deployed to GCP. Auth, upload, and job creation are verified working. Remaining:
 
-- [ ] Spin up Docker Compose stack (Postgres, fake-gcs-server, Pub/Sub emulator, API, Worker)
-- [ ] Run Alembic migration against live database
-- [ ] Test auth flow: signup → login → token works on protected routes
-- [ ] Test upload flow: get signed URL → upload a video to fake-gcs-server → confirm
-- [ ] Test job creation: create job → verify Pub/Sub message published, worker picks it up
-- [ ] Test detection pipeline: run worker on a real basketball video, check progress updates
-- [ ] Test player selection: submit player track ID, verify highlight generation kicks off
-- [ ] Test highlights: verify reels are uploaded to GCS and download URLs work
-- [ ] Fix any bugs found during testing
+- [x] Auth flow: signup → login → token works on protected routes
+- [x] Upload flow: get signed URL → upload video to GCS → confirm
+- [x] Job creation: create job → Pub/Sub message published
+- [ ] Worker picks up detection job and runs YOLO pipeline
+- [ ] Detection completes → job status moves to `awaiting_selection`
+- [ ] Player selection → highlight generation kicks off
+- [ ] Highlights uploaded to GCS and download URLs work
+- [ ] Full end-to-end flow verified
 
 ### Phase 2: iOS App
 
 - [ ] React Native + TypeScript project setup
 - [ ] Auth screens (signup / login)
 - [ ] Home screen (upload button + video history)
-- [ ] Video upload (camera roll picker → presigned URL → S3 → confirm)
+- [ ] Video upload (camera roll picker → signed URL → GCS → confirm)
 - [ ] Player selection UI (annotated frame, tap to select)
 - [ ] Processing screen (progress bar polling /jobs/{id}/progress)
 - [ ] Highlights screen (watch + download/share reels)
