@@ -50,6 +50,7 @@
 - [x] Worker memory bumped to 8 GiB (YOLO models exceed 4 GiB)
 - [x] Frame skipping via YOLO `vid_stride=5` (~6 FPS from 30 FPS source) — true 5x speedup by skipping frames before inference
 - [x] Job cancellation endpoint (`POST /jobs/{id}/cancel`) with worker-side cancellation checks
+- [x] Player re-selection (`POST /jobs/{id}/reselect`) — resets completed job to `awaiting_selection`, deletes old highlights, lets user pick a different player
 
 ## Next Steps
 

@@ -91,6 +91,7 @@ API routes publish messages to Pub/Sub topics; the subscriber worker (`app/worke
 - **`ROBOFLOW_API_KEY` is optional**: If unset, rim detection is skipped and event detection uses upper-quarter heuristic
 - **Frame skipping**: `frame_skip=5` by default (~6 FPS from 30 FPS source). Uses YOLO's `vid_stride` to skip frames before inference — true 5x speedup. Configurable via `FRAME_SKIP` env var.
 - **Job cancellation**: `POST /jobs/{id}/cancel` sets status to `cancelled`; worker checks on every progress callback and raises `JobCancelledError` to stop cleanly.
+- **Player re-selection**: `POST /jobs/{id}/reselect` resets a `completed` job back to `awaiting_selection`, deletes old highlights, clears player selection — lets user pick a different player and regenerate highlights using cached detection data.
 - **Settings singleton**: All config in `app/config.py` via `pydantic-settings`, reading from env vars / `.env`
 
 ### Status State Machines
@@ -98,6 +99,8 @@ API routes publish messages to Pub/Sub topics; the subscriber worker (`app/worke
 ```
 Video:  uploading → uploaded → processing → done
 Job:    queued → processing → awaiting_selection → processing → completed | failed | cancelled
+                                    ↑                              |
+                                    └──────── reselect ────────────┘
 ```
 
 ### Database (5 tables)

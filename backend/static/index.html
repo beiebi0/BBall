@@ -277,6 +277,9 @@
     <span class="back-link" onclick="showScreen('dashboardScreen')">&larr; Back</span>
     <h2 class="mb-16">Your Highlights</h2>
     <div id="highlightsList"></div>
+    <div class="text-center mt-16">
+      <button class="btn btn-outline" id="reselectBtn" onclick="reselectPlayer()">Select Different Player</button>
+    </div>
   </div>
 
 </div>
@@ -701,6 +704,22 @@ async function loadHighlights(jobId) {
     container.innerHTML = html;
   } catch (err) {
     container.innerHTML = '<p class="text-center" style="color:var(--red)">Failed to load highlights.</p>';
+  }
+}
+
+async function reselectPlayer() {
+  if (!currentJobId) return;
+  const btn = document.getElementById('reselectBtn');
+  btn.disabled = true;
+  btn.textContent = 'Resetting...';
+  try {
+    await api('POST', '/jobs/' + currentJobId + '/reselect');
+    loadPreview(currentJobId);
+  } catch (err) {
+    alert('Failed: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Select Different Player';
   }
 }
 

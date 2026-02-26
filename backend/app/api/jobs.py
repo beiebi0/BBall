@@ -3,12 +3,13 @@ import json
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete as sa_delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.storage import download_blob_bytes, generate_signed_download_url
+from app.models.highlight import Highlight
 from app.models.job import Job
 from app.models.user import User
 from app.models.video import Video
@@ -131,6 +132,36 @@ async def select_player(
     from app.core.pubsub import publish_highlights_task
 
     publish_highlights_task(str(job.id))
+
+    return _job_response(job)
+
+
+@router.post("/{job_id}/reselect", response_model=JobResponse)
+async def reselect_player(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    job = await _get_user_job(db, job_id, current_user.id)
+
+    if job.status != "completed":
+        raise HTTPException(
+            status_code=400, detail="Can only re-select player on a completed job"
+        )
+
+    # Delete existing highlights for this job
+    await db.execute(
+        sa_delete(Highlight).where(Highlight.job_id == job.id)
+    )
+
+    # Reset job to awaiting_selection state
+    job.status = "awaiting_selection"
+    job.progress = 60
+    job.stage = "Awaiting player selection"
+    job.selected_player_track_id = None
+    job.team_color_hex = None
+    await db.commit()
+    await db.refresh(job)
 
     return _job_response(job)
 

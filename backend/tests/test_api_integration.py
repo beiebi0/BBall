@@ -138,6 +138,13 @@ class TestJobs:
         # Should fail — video doesn't exist
         assert resp.status_code in (400, 404, 422)
 
+    def test_reselect_nonexistent_job(self, auth_headers):
+        resp = requests.post(
+            f"{BASE_URL}/jobs/{uuid.uuid4()}/reselect",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 404
+
 
 # ── Highlights ──────────────────────────────────────────────────────────────
 
