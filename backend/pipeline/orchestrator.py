@@ -44,8 +44,10 @@ class PipelineOrchestrator:
         rim_model_id: str = "basketball-xil7x/1",
         rim_conf: float = 0.30,
         rim_num_samples: int = 10,
+        frame_skip: int = 1,
         progress_callback: Optional[Callable[[int, str], None]] = None,
     ):
+        self.frame_skip = max(1, frame_skip)
         self.player_model_path = player_model_path
         self.ball_model_path = ball_model_path
         self.pose_model_path = pose_model_path
@@ -168,10 +170,17 @@ class PipelineOrchestrator:
         width = video_info["width"]
         height = video_info["height"]
 
+        if self.frame_skip > 1:
+            logger.info("Frame skip = %d (processing every %dth frame)", self.frame_skip, self.frame_skip)
+
         self._report(10, "Starting detection")
         all_frames: list[FrameData] = []
 
         for frame_idx, players, orig_img in player_detector.track_video(video_path):
+            # Skip frames for faster processing (tracking still runs on all frames)
+            if self.frame_skip > 1 and frame_idx % self.frame_skip != 0:
+                continue
+
             timestamp = frame_idx / fps if fps > 0 else 0
 
             # Detect ball in frame

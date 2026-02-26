@@ -29,7 +29,7 @@ cd backend && docker compose up --build
 cd backend && alembic upgrade head
 ```
 
-Single migration exists: `001_initial_schema.py`. Alembic uses the sync Postgres URL from `alembic.ini`.
+Two migrations: `001_initial_schema.py` and `002_rename_s3_key_to_gcs_key.py`. Alembic uses the sync Postgres URL from `alembic.ini`.
 
 ## Running Tests
 
@@ -89,13 +89,15 @@ API routes publish messages to Pub/Sub topics; the subscriber worker (`app/worke
 - **Zero-Face Policy**: Ball candidates within 30px of head keypoints (from pose model) are discarded as false positives
 - **IQR rim filtering**: `RimDetector` samples ~10 frames, applies IQR outlier filtering, returns median bbox
 - **`ROBOFLOW_API_KEY` is optional**: If unset, rim detection is skipped and event detection uses upper-quarter heuristic
+- **Frame skipping**: `frame_skip=5` by default (~6 FPS from 30 FPS source). Ball detection runs on every Nth frame; YOLO tracker still streams all frames. Configurable via `FRAME_SKIP` env var.
+- **Job cancellation**: `POST /jobs/{id}/cancel` sets status to `cancelled`; worker checks on every progress callback and raises `JobCancelledError` to stop cleanly.
 - **Settings singleton**: All config in `app/config.py` via `pydantic-settings`, reading from env vars / `.env`
 
 ### Status State Machines
 
 ```
 Video:  uploading → uploaded → processing → done
-Job:    queued → processing → awaiting_selection → processing → completed | failed
+Job:    queued → processing → awaiting_selection → processing → completed | failed | cancelled
 ```
 
 ### Database (5 tables)
@@ -108,7 +110,7 @@ Set in `docker-compose.yml` for containerized dev. For local dev, use `backend/.
 - `DATABASE_URL` / `DATABASE_URL_SYNC` — async (asyncpg) and sync (psycopg2) Postgres URLs
 - `GCS_BUCKET`, `GCS_PROJECT_ID`, `GCS_ENDPOINT_URL` (for fake-gcs-server), `GCS_SERVICE_ACCOUNT_JSON` (prod only)
 - `PUBSUB_PROJECT_ID`, `PUBSUB_EMULATOR_HOST`, `PUBSUB_TOPIC_DETECTION`, `PUBSUB_TOPIC_HIGHLIGHTS`, `PUBSUB_SUBSCRIPTION_DETECTION`, `PUBSUB_SUBSCRIPTION_HIGHLIGHTS`
-- `JWT_SECRET`, `ROBOFLOW_API_KEY` (optional)
+- `JWT_SECRET`, `ROBOFLOW_API_KEY` (optional), `FRAME_SKIP` (default 5)
 
 ## Web Client
 
@@ -118,11 +120,12 @@ A single-file SPA (`backend/static/index.html`) is served at `/static/index.html
 
 The backend is deployed to GCP Cloud Run. Key details:
 - **API**: `bball-api` on Cloud Run (1 vCPU, 512 MB, scales to 0)
-- **Worker**: `bball-worker` on Cloud Run (2 vCPU, 4 GB, min-instances=1, HTTP health server on port 8080)
+- **Worker**: `bball-worker` on Cloud Run (2 vCPU, 8 GB, min-instances=1, HTTP health server on port 8080)
 - **Cloud SQL**: PostgreSQL 16, `db-f1-micro`, ENTERPRISE edition, public IP
 - **GCS signed URLs**: Require SA key in Secret Manager (`gcs-sa-key` → `GCS_SERVICE_ACCOUNT_JSON` env var)
-- **Deploy script**: `backend/deploy.sh` — idempotent, provisions all resources
+- **Deploy script**: `backend/deploy.sh` — idempotent, provisions all resources. Uses `--update-env-vars` for DB URLs (special chars break `--set-env-vars`).
 - Worker uses deferred Pub/Sub init (background thread) so health probe passes before credential lookups complete
+- Worker monitors streaming pull futures — logs errors and shuts down cleanly if a subscription fails
 
 ## Project Status
 

@@ -148,7 +148,7 @@ Eliminated redundant detection in the two-phase pipeline. Previously, Phase 2 (`
 Deployed and verified the full backend on GCP:
 
 - **Cloud Run API** (`bball-api`) — 1 vCPU, 512 MB, scales to zero, public endpoint with `--allow-unauthenticated`
-- **Cloud Run Worker** (`bball-worker`) — 2 vCPU, 4 GB, always-on (`min-instances=1`, `--no-cpu-throttling`), HTTP health server on port 8080 for startup probes
+- **Cloud Run Worker** (`bball-worker`) — 2 vCPU, 8 GB, always-on (`min-instances=1`, `--no-cpu-throttling`), HTTP health server on port 8080 for startup probes
 - **Cloud SQL** — PostgreSQL 16, `db-f1-micro` (ENTERPRISE edition), public IP with authorized networks
 - **GCS** — `bball-videos-{project_id}` bucket with signed URLs via SA key in Secret Manager
 - **Pub/Sub** — `video-detection` and `video-highlights` topics with 600s ack deadline subscriptions
@@ -206,6 +206,21 @@ gcloud run deploy bball-api --image="${IMAGE}" --region=us-central1
 gcloud run deploy bball-worker --image="${IMAGE}" --region=us-central1
 gcloud run jobs execute bball-migrate --region=us-central1 --wait  # only if DB changes
 ```
+
+### Step 18 — Deploy Script Env Var Fix & Worker Reliability
+
+Fixed critical deployment issues discovered during production debugging:
+
+- **`deploy.sh` env var parsing** — DB URLs (containing `://`, `@`, `+`, `=`) broke `--set-env-vars` comma-separated parsing. Fixed by deploying simple vars with `--set-env-vars` first, then patching DB URLs individually with `--update-env-vars`.
+- **Streaming pull monitoring** — Added `_watch_future()` threads in `subscriber.py` that monitor Pub/Sub streaming pull futures. If a subscription fails (e.g., permission denied, not found), the error is logged and the worker shuts down cleanly instead of hanging silently.
+- **Worker memory** — Bumped from 4 GiB to 8 GiB. YOLO11m model loading + per-frame inference exceeded the 4 GiB limit, causing OOM kills on Cloud Run.
+
+### Step 19 — Frame Skipping & Job Cancellation
+
+Reduced processing cost and added operational controls:
+
+- **Frame skipping** — New `frame_skip` config setting (default `5`, ~6 FPS from 30 FPS source). The YOLO tracker still streams all frames, but ball detection + possession tracking only runs on every Nth frame. Reduces memory (~5x fewer `FrameData` objects stored) and processing time. Configurable via `FRAME_SKIP` env var.
+- **Job cancellation** — New `POST /jobs/{id}/cancel` endpoint sets job status to `cancelled`. Worker checks `job.status` in the DB on every progress callback; if cancelled, raises `JobCancelledError` which cleanly stops processing and acks the Pub/Sub message. Works for both detection and highlights phases.
 
 ### Phase 1 Result
 

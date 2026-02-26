@@ -135,6 +135,27 @@ async def select_player(
     return _job_response(job)
 
 
+@router.post("/{job_id}/cancel", response_model=JobResponse)
+async def cancel_job(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    job = await _get_user_job(db, job_id, current_user.id)
+
+    if job.status in ("completed", "failed", "cancelled"):
+        raise HTTPException(
+            status_code=400, detail=f"Job is already {job.status}"
+        )
+
+    job.status = "cancelled"
+    job.stage = "Cancelled by user"
+    await db.commit()
+    await db.refresh(job)
+
+    return _job_response(job)
+
+
 async def _get_user_job(db: AsyncSession, job_id: str, user_id: uuid.UUID) -> Job:
     result = await db.execute(
         select(Job).where(Job.id == job_id, Job.user_id == user_id)

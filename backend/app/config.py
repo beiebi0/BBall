@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     tracker_config_path: str = "models/botsort.yaml"
 
     # Pipeline
+    frame_skip: int = 5  # process every Nth frame (~6 FPS from 30 FPS source)
     clip_padding_before: float = 3.0
     clip_padding_after: float = 2.0
     possession_smoothing_window: int = 10

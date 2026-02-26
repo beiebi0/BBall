@@ -17,6 +17,10 @@ _engine = create_engine(settings.database_url_sync)
 SyncSession = sessionmaker(bind=_engine)
 
 
+class JobCancelledError(Exception):
+    pass
+
+
 def _update_job(session: Session, job_id: str, **kwargs):
     from app.models.job import Job
 
@@ -25,6 +29,16 @@ def _update_job(session: Session, job_id: str, **kwargs):
         for k, v in kwargs.items():
             setattr(job, k, v)
         session.commit()
+
+
+def _check_cancelled(session: Session, job_id: str):
+    """Check if a job has been cancelled. Raises JobCancelledError if so."""
+    from app.models.job import Job
+
+    session.expire_all()  # force fresh read from DB
+    job = session.query(Job).filter(Job.id == job_id).first()
+    if job and job.status == "cancelled":
+        raise JobCancelledError(f"Job {job_id} was cancelled")
 
 
 def process_video_detection(job_id: str):
@@ -60,6 +74,7 @@ def process_video_detection(job_id: str):
         from pipeline.orchestrator import PipelineOrchestrator
 
         def progress_cb(pct: int, msg: str):
+            _check_cancelled(session, job_id)
             _update_job(session, job_id, progress=pct, stage=msg)
 
         orchestrator = PipelineOrchestrator(
@@ -74,6 +89,7 @@ def process_video_detection(job_id: str):
             rim_model_id=settings.rim_model_id,
             rim_conf=settings.rim_conf_threshold,
             rim_num_samples=settings.rim_num_samples,
+            frame_skip=settings.frame_skip,
             progress_callback=progress_cb,
         )
 
@@ -136,6 +152,8 @@ def process_video_detection(job_id: str):
 
         logger.info("Detection phase complete for job %s", job_id)
 
+    except JobCancelledError:
+        logger.info("Detection cancelled for job %s", job_id)
     except Exception as e:
         logger.exception("Detection failed for job %s", job_id)
         _update_job(
@@ -177,6 +195,7 @@ def process_video_highlights(job_id: str):
         output_dir = os.path.join(work_dir, "output")
 
         def progress_cb(pct: int, msg: str):
+            _check_cancelled(session, job_id)
             _update_job(session, job_id, progress=pct, stage=msg)
 
         from pipeline.orchestrator import PipelineOrchestrator
@@ -194,6 +213,7 @@ def process_video_highlights(job_id: str):
             rim_model_id=settings.rim_model_id,
             rim_conf=settings.rim_conf_threshold,
             rim_num_samples=settings.rim_num_samples,
+            frame_skip=settings.frame_skip,
             progress_callback=progress_cb,
         )
 
@@ -253,6 +273,8 @@ def process_video_highlights(job_id: str):
         import shutil
         shutil.rmtree(work_dir, ignore_errors=True)
 
+    except JobCancelledError:
+        logger.info("Highlight generation cancelled for job %s", job_id)
     except Exception as e:
         logger.exception("Highlight generation failed for job %s", job_id)
         _update_job(
