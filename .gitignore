@@ -23,6 +23,9 @@ build/
 .env
 .env.local
 
+# GCP service account keys
+project-*.json
+
 # IDE
 .idea/
 .vscode/
