@@ -293,7 +293,7 @@ Fixed critical deployment issues discovered during production debugging:
 
 Reduced processing cost and added operational controls:
 
-- **Frame skipping** — New `frame_skip` config setting (default `5`, ~6 FPS from 30 FPS source). The YOLO tracker still streams all frames, but ball detection + possession tracking only runs on every Nth frame. Reduces memory (~5x fewer `FrameData` objects stored) and processing time. Configurable via `FRAME_SKIP` env var.
+- **Frame skipping** — New `frame_skip` config setting (default `5`, ~6 FPS from 30 FPS source). Uses YOLO's `vid_stride` parameter to skip frames at the video reader level **before any inference runs**. A 60-second video at 30 FPS processes ~360 frames instead of 1800 — a true 5x speedup on both player and ball detection. Configurable via `FRAME_SKIP` env var.
 - **Job cancellation** — New `POST /jobs/{id}/cancel` endpoint sets job status to `cancelled`. Worker checks `job.status` in the DB on every progress callback; if cancelled, raises `JobCancelledError` which cleanly stops processing and acks the Pub/Sub message. Works for both detection and highlights phases.
 
 ### Phase 1 Result

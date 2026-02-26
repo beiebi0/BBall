@@ -48,7 +48,7 @@
 - [x] Fix `deploy.sh` env var parsing — use `--update-env-vars` for DB URLs (special chars break `--set-env-vars`)
 - [x] Streaming pull future monitoring in subscriber (logs errors instead of hanging silently)
 - [x] Worker memory bumped to 8 GiB (YOLO models exceed 4 GiB)
-- [x] Frame skipping (`frame_skip=5`, ~6 FPS from 30 FPS source) to reduce memory and processing time
+- [x] Frame skipping via YOLO `vid_stride=5` (~6 FPS from 30 FPS source) — true 5x speedup by skipping frames before inference
 - [x] Job cancellation endpoint (`POST /jobs/{id}/cancel`) with worker-side cancellation checks
 
 ## Next Steps

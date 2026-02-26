@@ -89,7 +89,7 @@ API routes publish messages to Pub/Sub topics; the subscriber worker (`app/worke
 - **Zero-Face Policy**: Ball candidates within 30px of head keypoints (from pose model) are discarded as false positives
 - **IQR rim filtering**: `RimDetector` samples ~10 frames, applies IQR outlier filtering, returns median bbox
 - **`ROBOFLOW_API_KEY` is optional**: If unset, rim detection is skipped and event detection uses upper-quarter heuristic
-- **Frame skipping**: `frame_skip=5` by default (~6 FPS from 30 FPS source). Ball detection runs on every Nth frame; YOLO tracker still streams all frames. Configurable via `FRAME_SKIP` env var.
+- **Frame skipping**: `frame_skip=5` by default (~6 FPS from 30 FPS source). Uses YOLO's `vid_stride` to skip frames before inference — true 5x speedup. Configurable via `FRAME_SKIP` env var.
 - **Job cancellation**: `POST /jobs/{id}/cancel` sets status to `cancelled`; worker checks on every progress callback and raises `JobCancelledError` to stop cleanly.
 - **Settings singleton**: All config in `app/config.py` via `pydantic-settings`, reading from env vars / `.env`
 
