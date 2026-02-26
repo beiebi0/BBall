@@ -196,15 +196,89 @@ Deployed latest code to GCP and resolved several production issues:
 - **Pub/Sub topics missing** — Topics `video-detection` and `video-highlights` with subscriptions were not created. Created manually.
 - **Stale test data** — Integration tests (`test_api_integration.py`) were creating randomized `test-{uuid}@test.com` users and orphaned video rows on every run against production. Cleaned up with SQL deletes.
 
-**Deployment cheat sheet** (code-only changes, no infra changes):
+**Deployment cheat sheet** (code-only redeploy from Cloud Shell):
+
 ```bash
-# From Cloud Shell
-cd backend
-IMAGE="us-central1-docker.pkg.dev/${GOOGLE_CLOUD_PROJECT}/bball-repo/bball:latest"
-gcloud builds submit --tag "${IMAGE}" .
-gcloud run deploy bball-api --image="${IMAGE}" --region=us-central1
-gcloud run deploy bball-worker --image="${IMAGE}" --region=us-central1
-gcloud run jobs execute bball-migrate --region=us-central1 --wait  # only if DB changes
+# ── Step 0: Set env vars (run once per Cloud Shell session) ──
+export PROJECT_ID="${GOOGLE_CLOUD_PROJECT}"
+export REGION="us-central1"
+export DB_PASSWORD="7Q3jnBHC+RjywqdWPrbfZGz2M9fXCzyx"
+export IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/bball-repo/bball:latest"
+export SA_EMAIL="bball-sa@${PROJECT_ID}.iam.gserviceaccount.com"
+export SQL_INSTANCE="bball-db"
+export SQL_CONNECTION="${PROJECT_ID}:${REGION}:${SQL_INSTANCE}"
+export PUBLIC_IP=$(gcloud sql instances describe "${SQL_INSTANCE}" --project="${PROJECT_ID}" --format="value(ipAddresses[0].ipAddress)")
+export GCS_BUCKET="bball-videos-${PROJECT_ID}"
+export DB_URL_ASYNC="postgresql+asyncpg://bball:${DB_PASSWORD}@${PUBLIC_IP}/bball?ssl=disable"
+export DB_URL_SYNC="postgresql://bball:${DB_PASSWORD}@${PUBLIC_IP}/bball"
+export SECRETS_FLAG="JWT_SECRET=jwt-secret:latest,GCS_SERVICE_ACCOUNT_JSON=gcs-sa-key:latest"
+
+# ── Step 1: Pull latest code & build image ──
+# First cd to the backend/ directory if not already there:
+#   cd ~/BBall/backend
+git pull
+gcloud builds submit --tag "${IMAGE}" . --quiet
+
+# ── Step 2: Deploy API ──
+SIMPLE_ENV="GCS_BUCKET=${GCS_BUCKET}"
+SIMPLE_ENV+=",GCS_PROJECT_ID=${PROJECT_ID}"
+SIMPLE_ENV+=",GCS_ENDPOINT_URL="
+SIMPLE_ENV+=",PUBSUB_PROJECT_ID=${PROJECT_ID}"
+SIMPLE_ENV+=",PUBSUB_EMULATOR_HOST="
+SIMPLE_ENV+=",PUBSUB_TOPIC_DETECTION=video-detection"
+SIMPLE_ENV+=",PUBSUB_TOPIC_HIGHLIGHTS=video-highlights"
+
+gcloud run deploy bball-api \
+  --image="${IMAGE}" --region="${REGION}" \
+  --service-account="${SA_EMAIL}" \
+  --add-cloudsql-instances="${SQL_CONNECTION}" \
+  --set-env-vars="${SIMPLE_ENV}" \
+  --set-secrets="${SECRETS_FLAG}" \
+  --port=8000 --memory=512Mi --cpu=1 \
+  --min-instances=0 --max-instances=10 \
+  --allow-unauthenticated \
+  --project="${PROJECT_ID}" --quiet
+
+gcloud run services update bball-api --region="${REGION}" --project="${PROJECT_ID}" --quiet \
+  --update-env-vars="DATABASE_URL=${DB_URL_ASYNC}"
+gcloud run services update bball-api --region="${REGION}" --project="${PROJECT_ID}" --quiet \
+  --update-env-vars="DATABASE_URL_SYNC=${DB_URL_SYNC}"
+
+# ── Step 3: Deploy Worker ──
+WORKER_SIMPLE_ENV="GCS_BUCKET=${GCS_BUCKET}"
+WORKER_SIMPLE_ENV+=",GCS_PROJECT_ID=${PROJECT_ID}"
+WORKER_SIMPLE_ENV+=",GCS_ENDPOINT_URL="
+WORKER_SIMPLE_ENV+=",PUBSUB_PROJECT_ID=${PROJECT_ID}"
+WORKER_SIMPLE_ENV+=",PUBSUB_EMULATOR_HOST="
+WORKER_SIMPLE_ENV+=",PUBSUB_TOPIC_DETECTION=video-detection"
+WORKER_SIMPLE_ENV+=",PUBSUB_TOPIC_HIGHLIGHTS=video-highlights"
+WORKER_SIMPLE_ENV+=",PUBSUB_SUBSCRIPTION_DETECTION=video-detection-sub"
+WORKER_SIMPLE_ENV+=",PUBSUB_SUBSCRIPTION_HIGHLIGHTS=video-highlights-sub"
+
+gcloud run deploy bball-worker \
+  --image="${IMAGE}" --region="${REGION}" \
+  --service-account="${SA_EMAIL}" \
+  --add-cloudsql-instances="${SQL_CONNECTION}" \
+  --command="python","-m","app.workers.subscriber" \
+  --set-env-vars="${WORKER_SIMPLE_ENV}" \
+  --set-secrets="${SECRETS_FLAG}" \
+  --port=8080 --memory=8Gi --cpu=2 \
+  --min-instances=1 --max-instances=3 \
+  --timeout=3600 \
+  --no-allow-unauthenticated --no-cpu-throttling \
+  --project="${PROJECT_ID}" --quiet
+
+gcloud run services update bball-worker --region="${REGION}" --project="${PROJECT_ID}" --quiet \
+  --update-env-vars="DATABASE_URL=${DB_URL_ASYNC}"
+gcloud run services update bball-worker --region="${REGION}" --project="${PROJECT_ID}" --quiet \
+  --update-env-vars="DATABASE_URL_SYNC=${DB_URL_SYNC}"
+
+# ── Step 4: Run migrations (only if DB schema changed) ──
+gcloud run jobs execute bball-migrate --region="${REGION}" --project="${PROJECT_ID}" --wait --quiet
+
+# ── Step 5: Verify ──
+gcloud run services logs read bball-api --region="${REGION}" --limit=10
+gcloud run services logs read bball-worker --region="${REGION}" --limit=20
 ```
 
 ### Step 18 — Deploy Script Env Var Fix & Worker Reliability
