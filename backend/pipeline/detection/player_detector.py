@@ -18,18 +18,20 @@ class PlayerDetector:
         tracker_config: str = "models/botsort.yaml",
         conf_thresh: float = 0.25,
         imgsz: int = 1280,
+        vid_stride: int = 1,
     ):
         self.model = YOLO(model_path)
         self.tracker_config = tracker_config
         self.conf_thresh = conf_thresh
         self.imgsz = imgsz
+        self.vid_stride = max(1, vid_stride)
 
     def track_video(self, video_path: str) -> Iterator[tuple[int, list[PlayerDetection], np.ndarray]]:
         """
         Stream player detections frame-by-frame.
         Yields (frame_index, players, original_frame) tuples.
+        vid_stride skips frames at the video reader level (before any inference).
         """
-        # Run tracking at 1280 resolution
         results = self.model.track(
             source=video_path,
             tracker=self.tracker_config,
@@ -37,6 +39,7 @@ class PlayerDetector:
             stream=True,
             conf=self.conf_thresh,
             imgsz=self.imgsz,
+            vid_stride=self.vid_stride,
         )
 
         for frame_idx, result in enumerate(results):

@@ -156,6 +156,7 @@ class PipelineOrchestrator:
             model_path=self.player_model_path,
             tracker_config=self.tracker_config_path,
             conf_thresh=self.player_conf,
+            vid_stride=self.frame_skip,
         )
         ball_detector = BallDetector(
             model_path=self.ball_model_path,
@@ -177,10 +178,6 @@ class PipelineOrchestrator:
         all_frames: list[FrameData] = []
 
         for frame_idx, players, orig_img in player_detector.track_video(video_path):
-            # Skip frames for faster processing (tracking still runs on all frames)
-            if self.frame_skip > 1 and frame_idx % self.frame_skip != 0:
-                continue
-
             timestamp = frame_idx / fps if fps > 0 else 0
 
             # Detect ball in frame
@@ -201,7 +198,9 @@ class PipelineOrchestrator:
             all_frames.append(frame_data)
 
             # Report progress (10-60% range)
-            if total_frames > 0 and frame_idx % 100 == 0:
+            # Reports every 30 processed frames (~5 seconds at 6 FPS)
+            # This also triggers cancellation checks in the worker callback
+            if total_frames > 0 and len(all_frames) % 30 == 0:
                 pct = 10 + int(50 * frame_idx / total_frames)
                 self._report(pct, f"Processing frame {frame_idx}/{total_frames}")
 
