@@ -202,7 +202,7 @@ Deployed latest code to GCP and resolved several production issues:
 # ── Step 0: Set env vars (run once per Cloud Shell session) ──
 export PROJECT_ID="${GOOGLE_CLOUD_PROJECT}"
 export REGION="us-central1"
-export DB_PASSWORD="7Q3jnBHC+RjywqdWPrbfZGz2M9fXCzyx"
+export DB_PASSWORD="<your-db-password>"
 export IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/bball-repo/bball:latest"
 export SA_EMAIL="bball-sa@${PROJECT_ID}.iam.gserviceaccount.com"
 export SQL_INSTANCE="bball-db"
